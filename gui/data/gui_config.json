@@ -1,0 +1,21 @@
+{
+  "email": {
+    "email_address": "3185709067@qq.com",
+    "password": "yvytyyqoxacsdfic",
+    "fetch_days": 7,
+    "max_emails": 50
+  },
+  "scraper": {
+    "max_scrape_links": 0,
+    "scrape_delay_min": 5,
+    "scrape_delay_max": 12,
+    "date_filter_days": 7
+  },
+  "analysis": {
+    "enable_nlp": true,
+    "enable_llm": false,
+    "enable_charts": true,
+    "generate_pdf": false,
+    "report_format": "word"
+  }
+}

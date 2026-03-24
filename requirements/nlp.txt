@@ -1,0 +1,18 @@
+# NLP Entity Recognition and Text Analysis Dependencies
+# For Phase 2: Intelligent Entity Recognition System
+
+# Core NLP libraries
+spacy>=3.7.0
+scikit-learn>=1.3.0
+
+# Optional: For advanced transformers (can be added later)
+# transformers>=4.35.0
+# torch>=2.1.0
+
+# Text processing
+jieba>=0.42.1  # Chinese text segmentation
+
+# Financial entity extraction
+# Currency and number parsing
+# (Included in spaCy, but additional utilities)
+python-dateutil>=2.8.2  # Advanced date parsing

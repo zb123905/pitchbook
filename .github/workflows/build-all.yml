@@ -1,0 +1,112 @@
+name: Build VC_PE_PitchBook
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (例如: 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m venv .venv
+        .venv\Scripts\activate
+        pip install -r requirements.txt
+        playwright install chromium
+
+    - name: Build Windows
+      run: |
+        .venv\Scripts\activate
+        pyinstaller build_exe.spec
+
+    - name: Create release package
+      run: |
+        mkdir release
+        copy dist\VC_PE_PitchBook.exe release\
+        echo 使用说明 > release\使用说明.txt
+        echo 1. 双击 VC_PE_PitchBook.exe >> release\使用说明.txt
+        echo 2. 首次运行自动创建数据目录 >> release\使用说明.txt
+        mkdir release\数据储存
+
+    - name: Zip release
+      run: Compress-Archive -Path release\* -DestinationPath VC_PE_PitchBook_Windows.zip
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: VC_PE_PitchBook_Windows
+        path: VC_PE_PitchBook_Windows.zip
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python3 -m venv .venv
+        source .venv/bin/activate
+        pip install -r requirements.txt
+        playwright install chromium
+
+    - name: Build macOS
+      run: |
+        source .venv/bin/activate
+        bash build_macos_app.sh
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: VC_PE_PitchBook_macOS
+        path: dist/VC_PE_PitchBook_macOS.zip
+
+  create-release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: VC_PE_PitchBook_Windows
+
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: VC_PE_PitchBook_macOS
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          VC_PE_PitchBook_Windows.zip
+          VC_PE_PitchBook_macOS.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

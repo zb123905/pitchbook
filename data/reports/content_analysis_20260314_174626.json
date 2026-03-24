@@ -1,0 +1,61 @@
+[
+  {
+    "email_id": "sample_pitchbook_email.txt",
+    "subject": "PitchBook Weekly Newsletter - VC/PE Market Updates March 14, 2026",
+    "timestamp": "2026-03-14T17:46:26.548783",
+    "categories": [
+      "Vc Investment",
+      "Pe Deals",
+      "Market Trends",
+      "Exits",
+      "Quarterly Report",
+      "Market Outlook",
+      "Deal Activity"
+    ],
+    "key_topics": [
+      "AI/Machine Learning",
+      "FinTech",
+      "Healthcare",
+      "E-commerce",
+      "Cybersecurity"
+    ],
+    "metrics": {
+      "mentioned_amounts": [
+        "$2.5 billion",
+        "$500 million",
+        "$300 million",
+        "$200 million",
+        "$800 million"
+      ],
+      "mentioned_percentages": [
+        "35%",
+        "67%",
+        "35%",
+        "22%",
+        "15%"
+      ],
+      "mentioned_companies": [
+        "DeepLearning Corp",
+        "HealthcarePartners",
+        "Venture Capital",
+        "GenAI Solutions Inc",
+        "Renewable Technologies Inc",
+        "Cybersecurity Ventures",
+        "TechVenture Group acquired DataAnalytics Corp"
+      ],
+      "mentioned_dates": [
+        "March 14, 2026"
+      ]
+    },
+    "links_analysis": {
+      "total": 6,
+      "domains": [
+        "pitchbook.com"
+      ],
+      "report_links": 3,
+      "pitchbook_links": 6
+    },
+    "summary": "Subject: PitchBook Weekly Newsletter - VC/PE Market Updates March 14, 2026\nFrom: newsletter@pitchbook. com\nDate: Fri, 14 Mar 2026 09:00:00 +0000\n\nDear PitchBook Subscriber,\n\nWelcome to this week's VC/PE market update. Here are the highlights:\n\n## Market Overview\n\nThis week's venture capital and private equity markets showed mixed signals",
+    "content_type": "Quarterly/Annual Report"
+  }
+]

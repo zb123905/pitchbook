@@ -1,0 +1,29 @@
+# 大文件和构建产物
+*.exe
+*.zip
+*.dmg
+dist/
+build/
+程序打包/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.ENV
+
+# 数据和日志
+数据储存/
+data/*.json
+data/*.png
+data/temp_charts/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# 系统文件
+.DS_Store
+Thumbs.db

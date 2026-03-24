@@ -1,0 +1,22 @@
+# Data Visualization and Chart Generation Dependencies
+# For Phase 3: Data Visualization and Trend Analysis
+
+# Core plotting libraries
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Network graphs
+networkx>=3.2.0
+
+# Interactive plots (optional, for future web dashboard)
+plotly>=5.18.0
+
+# Data manipulation
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Scientific computing for trend analysis
+scipy>=1.11.0
+
+# Image processing for chart export
+pillow>=10.0.0

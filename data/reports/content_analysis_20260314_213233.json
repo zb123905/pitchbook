@@ -1,0 +1,731 @@
+[
+  {
+    "email_index": 1,
+    "subject": "PitchBook News: Market IntelligenceFollow capital flows across investors, deals, and industry trends",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Deal Announcement",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/use-cases/private-market-intelligence",
+        "text": "Market IntelligenceFollow capital flows across investors, deals, and industry trends"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 2,
+    "subject": "PitchBook News: CompaniesUncover financial data on private and public companies",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/platform-data/companies",
+        "text": "CompaniesUncover financial data on private and public companies"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 3,
+    "subject": "PitchBook News: Platform OverviewAccess critical private market insights in one centralized hub",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/products",
+        "text": "Platform OverviewAccess critical private market insights in one centralized hub"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 4,
+    "subject": "PitchBook News: Take a TourExperience PitchBook firsthand with a guided platform preview",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "PE"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/tour-hub",
+        "text": "Take a TourExperience PitchBook firsthand with a guided platform preview"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 5,
+    "subject": "PitchBook News: CompanyLearn how PitchBook is shaping the future of finance",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/about",
+        "text": "CompanyLearn how PitchBook is shaping the future of finance"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 6,
+    "subject": "PitchBook News: Latest NewsNews, analysis, and data shaping private markets",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Market Report",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news",
+        "text": "Latest NewsNews, analysis, and data shaping private markets"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 7,
+    "subject": "PitchBook News: Private EquityIn-depth analysis of global PE markets, deals, and performance trends",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Market Report",
+    "categories": [
+      "PE"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/reports?f0=0000018c-ee0d-d110-a9cf-ee5fa9a50000",
+        "text": "Private EquityIn-depth analysis of global PE markets, deals, and performance trends"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 8,
+    "subject": "PitchBook News: Latest PE NewsNews, analysis, and data on private equity",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Market Report",
+    "categories": [
+      "PE"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/private-equity",
+        "text": "Latest PE NewsNews, analysis, and data on private equity"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 9,
+    "subject": "PitchBook News: Latest VC NewsNews, analysis, and data shaping the venture capital industry",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Market Report",
+    "categories": [
+      "VC"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/venture-capital",
+        "text": "Latest VC NewsNews, analysis, and data shaping the venture capital industry"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 10,
+    "subject": "PitchBook News: Latest Credit NewsCredit market activity, themes, and industry-shaping forces",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/credit",
+        "text": "Latest Credit NewsCredit market activity, themes, and industry-shaping forces"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 11,
+    "subject": "PitchBook News: Latest Industry & Tech News & ResearchNews, analysis, and data driving industry and technology investment",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Market Report",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 1,
+      "investment_found": true
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/technology",
+        "text": "Latest Industry & Tech News & ResearchNews, analysis, and data driving industry and technology inves"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 12,
+    "subject": "PitchBook News: Latest Limited Partner NewsNews, analysis, and data on the world of allocators",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Market Report",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/allocators",
+        "text": "Latest Limited Partner NewsNews, analysis, and data on the world of allocators"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 13,
+    "subject": "PitchBook News: Latest Dashboards & ToolsIndicators, trackers and other tools for dealmakers and allocators",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Deal Announcement",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/data-and-tools",
+        "text": "Latest Dashboards & ToolsIndicators, trackers and other tools for dealmakers and allocators"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 14,
+    "subject": "PitchBook News: Investors yank $1.65B from high-yield bond funds as war rages; YTD outflows hit $2.2B",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": true
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/articles/investors-yank-1-65b-from-high-yield-bond-funds-as-war-rages-ytd-outflows-hit-2-2b",
+        "text": "Investors yank $1.65B from high-yield bond funds as war rages; YTD outflows hit $2.2B"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 15,
+    "subject": "PitchBook News: Investors yank $1.65B from high-yield bond funds as war rages; YTD outflows hit $2.2B",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": true
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/articles/investors-yank-1-65b-from-high-yield-bond-funds-as-war-rages-ytd-outflows-hit-2-2b",
+        "text": "Investors yank $1.65B from high-yield bond funds as war rages; YTD outflows hit $2.2B"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 16,
+    "subject": "PitchBook News: European private credit defaults in spotlight as Partners Group’s Meister sounds warning",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "PE"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [
+        "Partners Group"
+      ],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/articles/european-private-credit-defaults-in-spotlight-as-partners-groups-meister-sounds-warning",
+        "text": "European private credit defaults in spotlight as Partners Group’s Meister sounds warning"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 17,
+    "subject": "PitchBook News: Morgan Stanley’s North Haven BDC sticks to 5% cap as redemption requests reach 10.9%",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/articles/morgan-stanleys-north-haven-bdc-sticks-to-5-cap-as-redemption-requests-reach-10-9",
+        "text": "Morgan Stanley’s North Haven BDC sticks to 5% cap as redemption requests reach 10.9%"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 18,
+    "subject": "PitchBook News: European M&A Pipeline: Software upheaval adds even more uncertainty to unforgiving market",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "PE",
+      "AI/ML"
+    ],
+    "key_topics": [
+      "AI/Machine Learning"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/articles/european-m-a-pipeline-software-upheaval-adds-even-more-uncertainty-to-unforgiving-market",
+        "text": "European M&A Pipeline: Software upheaval adds even more uncertainty to unforgiving market"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 19,
+    "subject": "PitchBook News: Redemption requests at Cliffwater private credit fund total 14% of shares in Q1",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/articles/redemption-requests-at-cliffwater-private-credit-fund-total-14-of-shares-in-q1",
+        "text": "Redemption requests at Cliffwater private credit fund total 14% of shares in Q1"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 20,
+    "subject": "PitchBook News: Oil price surge, war jitters drop European leveraged loans to 32-month low",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "PE"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/articles/oil-price-surge-war-jitters-drop-european-loans-to-32-month-low",
+        "text": "Oil price surge, war jitters drop European leveraged loans to 32-month low"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 21,
+    "subject": "PitchBook News: Construction & Engineering Report",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Market Report",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/reports/q4-2025-construction-engineering-report",
+        "text": "Construction & Engineering Report"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 22,
+    "subject": "PitchBook News: Construction & Engineering Report",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Market Report",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/reports/q4-2025-construction-engineering-report",
+        "text": "Construction & Engineering Report"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 23,
+    "subject": "PitchBook News: Global Distressed Credit Weekly Wrap",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Weekly Newsletter",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/reports/march-13-2026-global-distressed-credit-weekly-wrap",
+        "text": "Global Distressed Credit Weekly Wrap"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 24,
+    "subject": "PitchBook News: US PE Middle Market Report",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Market Report",
+    "categories": [
+      "PE"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/reports/2025-annual-us-pe-middle-market-report",
+        "text": "US PE Middle Market Report"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 25,
+    "subject": "PitchBook News: European Institutional Loan Market Technicals",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "PE"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/reports/march-13-2026-european-institutional-loan-market-technicals",
+        "text": "European Institutional Loan Market Technicals"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 26,
+    "subject": "PitchBook News: US High-Yield Bond Weekly Wrap",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Weekly Newsletter",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/reports/march-12-2026-us-high-yield-bond-weekly-wrap",
+        "text": "US High-Yield Bond Weekly Wrap"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 27,
+    "subject": "PitchBook News: US Credit Markets Weekly Wrap",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "Weekly Newsletter",
+    "categories": [
+      "General"
+    ],
+    "key_topics": [
+      "Market Overview"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/reports/march-12-2026-us-credit-markets-weekly-wrap",
+        "text": "US Credit Markets Weekly Wrap"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 28,
+    "subject": "PitchBook News: PitchBook Analyst Note: Iran War Raises New Risks for AI Datacenters",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "AI/ML"
+    ],
+    "key_topics": [
+      "AI/Machine Learning"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/reports/q1-2026-pitchbook-analyst-note-iran-war-raises-new-risks-for-ai-datacenters",
+        "text": "PitchBook Analyst Note: Iran War Raises New Risks for AI Datacenters"
+      }
+    ],
+    "source_file": ""
+  },
+  {
+    "email_index": 29,
+    "subject": "PitchBook News: Q1 2026 PitchBook Analyst Note: The Iran War Viewed Through a PE Lens",
+    "from": "news@pitchbook.com",
+    "date": "2026-03-14",
+    "content_type": "General News",
+    "categories": [
+      "PE",
+      "AI/ML"
+    ],
+    "key_topics": [
+      "AI/Machine Learning"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": false
+    },
+    "links": [
+      {
+        "url": "https://pitchbook.com/news/reports/q1-2026-pitchbook-analyst-note-the-iran-war-viewed-through-a-pe-lens",
+        "text": "Q1 2026 PitchBook Analyst Note: The Iran War Viewed Through a PE Lens"
+      }
+    ],
+    "source_file": ""
+  }
+]

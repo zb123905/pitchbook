@@ -1,0 +1,298 @@
+[
+  {
+    "email_index": 1,
+    "subject": "转发: Fw:Public PE returns bounce back",
+    "from": "dui wai <dwjmdx001@outlook.com>",
+    "date": "2026/3/16 19:21:34",
+    "content_type": "General News",
+    "categories": [
+      "VC",
+      "PE",
+      "AI/ML",
+      "Healthcare"
+    ],
+    "key_topics": [
+      "AI/Machine Learning",
+      "Healthcare"
+    ],
+    "metrics": {
+      "mentioned_companies": [],
+      "deal_count": 0,
+      "investment_found": true
+    },
+    "links": [
+      {
+        "url": "https://mail-online.nosdn.127.net/sm7152469e0936bb56f898ed395a2b11b7.jpg",
+        "text": "直接链接"
+      },
+      {
+        "url": "https://url6380.news.pitchbook.com/ls/click?upn=u001.d4n73BrX4Cuylw7SpSWIrf6GFa-2BaqM7ONnvsnswouzVKwos-2BdHbEXk6Y3H-2FTJu4eRKkhJuIHWCRdRraYLBb0UQ-3D-3DufaV_QOASx497fpzPFWc29gqMmM7h1DoCoNxLg382k-2BJlD8lJcgqFtEtKkWAg57guNdDmJ5YZxG8ZInq4OdzaAij7Tip6BEw5SPCkuigioL9wfXFYTeIItiZufZgC8Nx-2BDn5zy-2B5-2FxaexLVJsvuZAcuG1cW69n29OlZ1zzSq1-2B9Z-2B8YVKifjnhwN03ydKeNH5qo3LshioeuqFaSSjgPos2JCdnUChWbceqwy1BRTxHgC4FT1VwVkWhmMbVa4BJ6z0M9BQ6W8ApcZEdNKREIuY4VM9AqYXCld9CDM1yDTedFKIgp0NWYlatSK1k-2BYBQtxUFIXsqt5YkOUbIjUbqK4iCiMzOALgloI19ke0R6PpDxdbkar8xpD-2BBS0Id39xf3MCa7mCSeRaYVA8-2FpI-2Fhaxdt3FIm-2BchE5r9bZnEYX1Cxjd8RhRjjkGK0XMOpKqlh1ig-2FWgBTNKpwGCDFvwfyrnW0DlHpGgN144BClG-2F6tZu8czjoHPlHZ3F9uhUK2LAr1h0uGx-2BN5eWw6PvOwWeGsoQi1wrIn1JaTNern4PBvLVMrG2JP-2BS1wjfR4CrvsLTYWSjqXo5",
+        "text": "直接链接"
+      },
+      {
+        "url": "https://url6380.news.pitchbook.com/ls/click?upn=u001.d4n73BrX4Cuylw7SpSWIrYCQ-2F7Wx1VdE7sYl12opJBSgX8wjgWQkjpY2yE70mtuFtQh5JMynEp-2F-2B0ZsygXiW0ROawqPLdLKLDLhFPz7bIRSR2hDDQxA6A852B5KlmGCYs7vNm732SHO8j8wlp4F-2FYIH-2Fu9X4ZCXQhHfpgp4C4KoIYbGpk6fvtcFVqAkgTJ-2BJQ",
+        "text": "直接链接"
+      }
+    ],
+    "source_file": "MCP_7",
+    "entities": {
+      "companies": [],
+      "amounts": [
+        {
+          "amount": 10000000000.0,
+          "currency": "USD",
+          "original_text": "$10B",
+          "normalized": "10,000,000,000 USD"
+        },
+        {
+          "amount": 936000000000.0,
+          "currency": "USD",
+          "original_text": "0936b",
+          "normalized": "936,000,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2b",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 11000000000.0,
+          "currency": "USD",
+          "original_text": "11b",
+          "normalized": "11,000,000,000 USD"
+        },
+        {
+          "amount": 13000000000000.0,
+          "currency": "USD",
+          "original_text": "13\nT",
+          "normalized": "13,000,000,000,000 USD"
+        },
+        {
+          "amount": 10000000000.0,
+          "currency": "USD",
+          "original_text": "10B ",
+          "normalized": "10,000,000,000 USD"
+        },
+        {
+          "amount": 73000000000.0,
+          "currency": "USD",
+          "original_text": "73B",
+          "normalized": "73,000,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 382000.0,
+          "currency": "USD",
+          "original_text": "382k",
+          "normalized": "382,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 7000000000000.0,
+          "currency": "USD",
+          "original_text": "7T",
+          "normalized": "7,000,000,000,000 USD"
+        },
+        {
+          "amount": 6000000000.0,
+          "currency": "USD",
+          "original_text": "6B",
+          "normalized": "6,000,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 1000000000.0,
+          "currency": "USD",
+          "original_text": "1B",
+          "normalized": "1,000,000,000 USD"
+        },
+        {
+          "amount": 4000000000.0,
+          "currency": "USD",
+          "original_text": "4B",
+          "normalized": "4,000,000,000 USD"
+        },
+        {
+          "amount": 0.0,
+          "currency": "USD",
+          "original_text": "0M",
+          "normalized": "0 USD"
+        },
+        {
+          "amount": 9000000000.0,
+          "currency": "USD",
+          "original_text": "9B",
+          "normalized": "9,000,000,000 USD"
+        },
+        {
+          "amount": 1000.0,
+          "currency": "USD",
+          "original_text": "1k",
+          "normalized": "1,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 19000.0,
+          "currency": "USD",
+          "original_text": "19k",
+          "normalized": "19,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 3000000.0,
+          "currency": "USD",
+          "original_text": "3M",
+          "normalized": "3,000,000 USD"
+        },
+        {
+          "amount": 7000000.0,
+          "currency": "USD",
+          "original_text": "7m",
+          "normalized": "7,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 9000000000.0,
+          "currency": "USD",
+          "original_text": "9b",
+          "normalized": "9,000,000,000 USD"
+        },
+        {
+          "amount": 144000000000.0,
+          "currency": "USD",
+          "original_text": "144B",
+          "normalized": "144,000,000,000 USD"
+        },
+        {
+          "amount": 6000000000000.0,
+          "currency": "USD",
+          "original_text": "6t",
+          "normalized": "6,000,000,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 73000000000.0,
+          "currency": "USD",
+          "original_text": "73B",
+          "normalized": "73,000,000,000 USD"
+        },
+        {
+          "amount": 70000000.0,
+          "currency": "USD",
+          "original_text": "70m",
+          "normalized": "70,000,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        },
+        {
+          "amount": 7000000000.0,
+          "currency": "USD",
+          "original_text": "7b",
+          "normalized": "7,000,000,000 USD"
+        },
+        {
+          "amount": 852000000000.0,
+          "currency": "USD",
+          "original_text": "852B",
+          "normalized": "852,000,000,000 USD"
+        },
+        {
+          "amount": 5000.0,
+          "currency": "USD",
+          "original_text": "5K",
+          "normalized": "5,000 USD"
+        },
+        {
+          "amount": 4000.0,
+          "currency": "USD",
+          "original_text": "4K",
+          "normalized": "4,000 USD"
+        },
+        {
+          "amount": 2000000000.0,
+          "currency": "USD",
+          "original_text": "2B",
+          "normalized": "2,000,000,000 USD"
+        }
+      ],
+      "investors": [
+        "B AI fund",
+        "healthcare PE",
+        "Public PE",
+        "Subject         Public PE",
+        "Europe"
+      ],
+      "persons": [],
+      "dates": [
+        {
+          "date": 

@@ -1,0 +1,12 @@
+# PDF Report Generation Dependencies
+# For Phase 1: Professional PDF Report Generation
+
+# Core PDF library
+reportlab>=4.0.0
+
+# Required for PDFs
+pillow>=10.0.0
+
+# Already installed for visualization
+matplotlib>=3.8.0
+seaborn>=0.13.0
