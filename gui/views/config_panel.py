@@ -79,6 +79,24 @@ class ConfigPanel(ctk.CTkFrame):
         )
         scraper_label.pack(pady=(15, 10), padx=15, anchor="w")
 
+        # 爬虫开关
+        enable_frame = ctk.CTkFrame(scraper_frame, fg_color="transparent")
+        enable_frame.pack(fill="x", padx=15, pady=5)
+
+        self.enable_scraper_switch = ctk.CTkSwitch(
+            enable_frame,
+            text="启用网页爬取",
+            width=200
+        )
+        self.enable_scraper_switch.pack(side="left", padx=(0, 20))
+
+        self.fast_fail_switch = ctk.CTkSwitch(
+            enable_frame,
+            text="快速失败模式（跳过反爬虫页面）",
+            width=250
+        )
+        self.fast_fail_switch.pack(side="left")
+
         # 最大链接数
         links_frame = ctk.CTkFrame(scraper_frame, fg_color="transparent")
         links_frame.pack(fill="x", padx=15, pady=5)
@@ -112,11 +130,19 @@ class ConfigPanel(ctk.CTkFrame):
         # 爬虫说明
         scraper_tip = ctk.CTkLabel(
             scraper_frame,
-            text="⚠️ 爬虫会使用真实浏览器，每个页面需要较长时间，请耐心等待",
+            text="💡 提示：关闭爬虫可跳过网页爬取，仅分析邮件内容（速度更快）",
+            text_color=("#4CAF50", "#4CAF50"),
+            font=ctk.CTkFont(size=11)
+        )
+        scraper_tip.pack(pady=(10, 5), padx=15, anchor="w")
+
+        scraper_tip2 = ctk.CTkLabel(
+            scraper_frame,
+            text="⚠️ 爬虫会使用真实浏览器，每个页面需要 2-5 秒延迟",
             text_color=("#999", "#666"),
             font=ctk.CTkFont(size=11)
         )
-        scraper_tip.pack(pady=(10, 15), padx=15, anchor="w")
+        scraper_tip2.pack(pady=(0, 15), padx=15, anchor="w")
 
         # ================= 分析配置 =================
         analysis_frame = ctk.CTkFrame(container)
@@ -219,6 +245,10 @@ class ConfigPanel(ctk.CTkFrame):
         self.max_emails_entry.delete(0, "end")
         self.max_emails_entry.insert(0, str(self.config.email.max_emails))
 
+        # 爬虫开关
+        self.enable_scraper_switch.select() if self.config.scraper.enable_scraper else self.enable_scraper_switch.deselect()
+        self.fast_fail_switch.select() if self.config.scraper.fast_fail else self.fast_fail_switch.deselect()
+
         self.max_links_entry.delete(0, "end")
         self.max_links_entry.insert(0, str(self.config.scraper.max_scrape_links))
 
@@ -252,14 +282,18 @@ class ConfigPanel(ctk.CTkFrame):
             config.email.max_emails = 50
 
         try:
-            config.scraper.max_scrape_links = int(self.max_links_entry.get() or "0")
-            config.scraper.scrape_delay_min = int(self.delay_min_entry.get() or "5")
-            config.scraper.scrape_delay_max = int(self.delay_max_entry.get() or "12")
+            config.scraper.enable_scraper = self.enable_scraper_switch.get() == 1
+            config.scraper.fast_fail = self.fast_fail_switch.get() == 1
+            config.scraper.max_scrape_links = int(self.max_links_entry.get() or "3")
+            config.scraper.scrape_delay_min = int(self.delay_min_entry.get() or "2")
+            config.scraper.scrape_delay_max = int(self.delay_max_entry.get() or "5")
             config.scraper.date_filter_days = int(self.date_filter_entry.get() or "7")
         except ValueError:
-            config.scraper.max_scrape_links = 0
-            config.scraper.scrape_delay_min = 5
-            config.scraper.scrape_delay_max = 12
+            config.scraper.enable_scraper = True
+            config.scraper.fast_fail = True
+            config.scraper.max_scrape_links = 3
+            config.scraper.scrape_delay_min = 2
+            config.scraper.scrape_delay_max = 5
             config.scraper.date_filter_days = 7
 
         config.analysis.enable_nlp = self.nlp_switch.get() == 1
@@ -288,10 +322,22 @@ class ConfigPanel(ctk.CTkFrame):
                 self.status_label.configure(text="❌ 保存失败", text_color=("#F44336", "#F44336"))
 
     def _on_reset(self):
-        """重置为默认配置"""
+        """重置为默认配置（保留邮箱凭据）"""
+        # 保存当前邮箱凭据
+        current_email = self.email_entry.get()
+        current_password = self.password_entry.get()
+
+        # 创建新配置并应用
         self.config = PipelineConfig()
+
+        # 恢复邮箱凭据
+        if current_email:
+            self.config.email.email_address = current_email
+        if current_password:
+            self.config.email.password = current_password
+
         self._apply_config_to_ui()
-        self.status_label.configure(text="↺ 已重置为默认配置", text_color=("#FF9800", "#FF9800"))
+        self.status_label.configure(text="↺ 已重置为默认配置（保留邮箱凭据）", text_color=("#FF9800", "#FF9800"))
 
     def get_config(self) -> Optional[PipelineConfig]:
         """获取当前配置"""

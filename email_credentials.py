@@ -13,10 +13,12 @@ IMAP_CONFIG = {
     'fetch_days': 7,          # 只读取最近 7 天的邮件（默认一周）
     'max_emails': 50,         # 最多读取 50 封邮件（增加数量以确保覆盖一周）
 
-    # 爬虫配置
-    'max_scrape_links': 0,    # 0 表示爬取所有符合条件的链接，>0 表示限制数量
-    'scrape_delay_min': 5,    # 每个请求的最小延迟（秒）
-    'scrape_delay_max': 12,   # 每个请求的最大延迟（秒）
+    # 爬虫配置（优化后）
+    'enable_scraper': True,      # 是否启用爬虫
+    'fast_fail': True,           # 快速失败模式（403/400错误不重试）
+    'max_scrape_links': 3,       # 默认限制3个链接（从0改为3）
+    'scrape_delay_min': 2,       # 从5降到2秒
+    'scrape_delay_max': 5,       # 从12降到5秒
 
     # 日期过滤
     'date_filter_days': 7,    # 只爬取最近 7 天发布的内容

@@ -42,16 +42,18 @@ class PitchBookScraper:
         {'width': 1536, 'height': 864},
     ]
 
-    def __init__(self, headless: bool = True, max_retries: int = 3):
+    def __init__(self, headless: bool = True, max_retries: int = 3, fast_fail: bool = False):
         """
         初始化爬虫
 
         Args:
             headless: 是否使用无头模式
             max_retries: 最大重试次数
+            fast_fail: 快速失败模式（403/400错误不重试）
         """
         self.headless = headless
         self.max_retries = max_retries
+        self.fast_fail = fast_fail  # 快速失败模式
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
@@ -368,6 +370,12 @@ class PitchBookScraper:
             status = response.status
             logger.info(f"HTTP 状态码: {status}")
 
+            # 快速失败模式：403/400错误不重试
+            if self.fast_fail and status in [400, 403, 429]:
+                logger.warning(f"快速失败模式：HTTP {status}，跳过该链接")
+                self.stats['failed'] += 1
+                return None
+
             if status == 403:
                 # 被检测为机器人，切换 User-Agent
                 logger.warning("检测到 403 Forbidden，切换 User-Agent")
@@ -487,7 +495,8 @@ class PitchBookScraper:
 
 async def scrape_single_url(url: str, headless: bool = True,
                             start_date: Optional[date] = None,
-                            end_date: Optional[date] = None) -> Optional[Dict]:
+                            end_date: Optional[date] = None,
+                            fast_fail: bool = False) -> Optional[Dict]:
     """
     爬取单个 URL 的便捷函数
 
@@ -496,11 +505,12 @@ async def scrape_single_url(url: str, headless: bool = True,
         headless: 是否使用无头模式
         start_date: 开始日期（用于过滤）
         end_date: 结束日期（用于过滤）
+        fast_fail: 快速失败模式（403/400错误不重试）
 
     Returns:
         爬取数据或 None
     """
-    scraper = PitchBookScraper(headless=headless)
+    scraper = PitchBookScraper(headless=headless, fast_fail=fast_fail)
 
     try:
         if not await scraper.initialize():
@@ -515,7 +525,8 @@ async def scrape_single_url(url: str, headless: bool = True,
 
 async def scrape_multiple_urls(urls: List[str], headless: bool = True,
                               start_date: Optional[date] = None,
-                              end_date: Optional[date] = None) -> List[Dict]:
+                              end_date: Optional[date] = None,
+                              fast_fail: bool = False) -> List[Dict]:
     """
     批量爬取 URL 的便捷函数
 
@@ -524,11 +535,12 @@ async def scrape_multiple_urls(urls: List[str], headless: bool = True,
         headless: 是否使用无头模式
         start_date: 开始日期（用于过滤）
         end_date: 结束日期（用于过滤）
+        fast_fail: 快速失败模式（403/400错误不重试）
 
     Returns:
         爬取结果列表
     """
-    scraper = PitchBookScraper(headless=headless)
+    scraper = PitchBookScraper(headless=headless, fast_fail=fast_fail)
 
     try:
         if not await scraper.initialize():

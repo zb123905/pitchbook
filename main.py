@@ -195,7 +195,12 @@ async def main():
 
     scraped_results = []
 
-    if pitchbook_links:
+    # 检查是否启用爬虫
+    enable_scraper = email_credentials.IMAP_CONFIG.get('enable_scraper', True)
+    if not enable_scraper:
+        print("⏭️ 爬虫功能已禁用，跳过网页爬取")
+        print("💡 提示：如需启用爬虫，请将 email_credentials.py 中的 enable_scraper 设为 True")
+    elif pitchbook_links:
         # 获取配置
         max_scrape = email_credentials.IMAP_CONFIG.get('max_scrape_links', 0)
         date_filter_days = email_credentials.IMAP_CONFIG.get('date_filter_days', 7)
@@ -224,18 +229,24 @@ async def main():
             print(f"🕷️ 准备爬取全部 {len(links_to_scrape)} 个网页（最近 {date_filter_days} 天）...")
 
         print(f"📊 跳过 {skipped_old} 个过期链接")
-        print(f"⚠️ 使用反爬虫技术，每个网页需要 {email_credentials.IMAP_CONFIG.get('scrape_delay_min', 5)}-{email_credentials.IMAP_CONFIG.get('scrape_delay_max', 12)} 秒")
+
+        # 获取快速失败配置
+        fast_fail = email_credentials.IMAP_CONFIG.get('fast_fail', True)
+        if fast_fail:
+            print(f"⚡ 快速失败模式已启用（反爬虫页面将跳过）")
+
+        print(f"⚠️ 使用反爬虫技术，每个网页需要 {email_credentials.IMAP_CONFIG.get('scrape_delay_min', 2)}-{email_credentials.IMAP_CONFIG.get('scrape_delay_max', 5)} 秒")
 
         # 计算预计时间
-        delay_min = email_credentials.IMAP_CONFIG.get('scrape_delay_min', 5)
-        delay_max = email_credentials.IMAP_CONFIG.get('scrape_delay_max', 12)
+        delay_min = email_credentials.IMAP_CONFIG.get('scrape_delay_min', 2)
+        delay_max = email_credentials.IMAP_CONFIG.get('scrape_delay_max', 5)
         delay_avg = (delay_min + delay_max) / 2
         estimated_time = len(links_to_scrape) * delay_avg / 60
         print(f"⏱️ 预计需要 {estimated_time:.1f} 分钟")
 
         try:
-            # 初始化爬虫
-            scraper = PitchBookScraper(headless=True)
+            # 初始化爬虫（传入 fast_fail 参数）
+            scraper = PitchBookScraper(headless=True, fast_fail=fast_fail)
 
             if not await scraper.initialize():
                 print("❌ 爬虫初始化失败，跳过网页爬取")

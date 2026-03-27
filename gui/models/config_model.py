@@ -33,9 +33,11 @@ class EmailConfig:
 @dataclass
 class ScraperConfig:
     """爬虫配置"""
-    max_scrape_links: int = 0  # 0 表示全部
-    scrape_delay_min: int = 5
-    scrape_delay_max: int = 12
+    enable_scraper: bool = True   # 是否启用爬虫
+    fast_fail: bool = True        # 快速失败模式（403/400错误不重试）
+    max_scrape_links: int = 3     # 默认限制3个链接（优化后）
+    scrape_delay_min: int = 2     # 优化后默认值
+    scrape_delay_max: int = 5     # 优化后默认值
     date_filter_days: int = 7
 
     def validate(self) -> tuple[bool, str]:

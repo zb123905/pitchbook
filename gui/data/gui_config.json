@@ -6,9 +6,11 @@
     "max_emails": 50
   },
   "scraper": {
-    "max_scrape_links": 0,
-    "scrape_delay_min": 5,
-    "scrape_delay_max": 12,
+    "enable_scraper": true,
+    "fast_fail": true,
+    "max_scrape_links": 3,
+    "scrape_delay_min": 2,
+    "scrape_delay_max": 5,
     "date_filter_days": 7
   },
   "analysis": {

@@ -155,6 +155,8 @@ class PipelineWorker:
         email_credentials.IMAP_CONFIG['password'] = self.config.email.password
         email_credentials.IMAP_CONFIG['fetch_days'] = self.config.email.fetch_days
         email_credentials.IMAP_CONFIG['max_emails'] = self.config.email.max_emails
+        email_credentials.IMAP_CONFIG['enable_scraper'] = self.config.scraper.enable_scraper
+        email_credentials.IMAP_CONFIG['fast_fail'] = self.config.scraper.fast_fail
         email_credentials.IMAP_CONFIG['max_scrape_links'] = self.config.scraper.max_scrape_links
         email_credentials.IMAP_CONFIG['scrape_delay_min'] = self.config.scraper.scrape_delay_min
         email_credentials.IMAP_CONFIG['scrape_delay_max'] = self.config.scraper.scrape_delay_max
@@ -306,7 +308,11 @@ class PipelineWorker:
 
         scraped_results = []
 
-        if pitchbook_links:
+        # 检查是否启用爬虫
+        if not self.config.scraper.enable_scraper:
+            self._update_progress(4, "skipped", "爬虫功能已禁用")
+            self._log("INFO", "⏭️ 爬虫功能已禁用，跳过网页爬取")
+        elif pitchbook_links:
             max_scrape = self.config.scraper.max_scrape_links
             date_filter_days = self.config.scraper.date_filter_days
             start_date, end_date = email_credentials.get_date_range(date_filter_days)
@@ -327,8 +333,11 @@ class PipelineWorker:
             self._log("INFO", f"🕷️ 准备爬取 {len(links_to_scrape)} 个网页...")
             self._log("INFO", f"⏱️ 预计需要 {estimated_time:.1f} 分钟")
 
+            if self.config.scraper.fast_fail:
+                self._log("INFO", f"⚡ 快速失败模式已启用（反爬虫页面将跳过）")
+
             try:
-                scraper = PitchBookScraper(headless=True)
+                scraper = PitchBookScraper(headless=True, fast_fail=self.config.scraper.fast_fail)
                 if not await scraper.initialize():
                     self._update_progress(4, "error", "爬虫初始化失败")
                 else:
