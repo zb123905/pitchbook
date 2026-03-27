@@ -15,6 +15,7 @@ try:
     import config
     MAX_TOKENS_DEFAULT = getattr(config, 'LLM_MAX_TOKENS', 3000)
     MAX_TOKENS_LONG = getattr(config, 'LLM_MAX_TOKENS_LONG', 6000)
+    MAX_TOKENS_ARTICLE = getattr(config, 'LLM_MAX_TOKENS_ARTICLE', 8000)  # For full 3000+ word articles
 except ImportError:
     MAX_TOKENS_DEFAULT = 3000
     MAX_TOKENS_LONG = 6000
@@ -34,6 +35,7 @@ class APIConfig:
     temperature: float = 0.2  # Lower temperature for more focused output
     max_tokens: int = MAX_TOKENS_DEFAULT  # Default token limit
     max_tokens_long: int = MAX_TOKENS_LONG  # For long reports
+    max_tokens_article: int = MAX_TOKENS_ARTICLE  # For full articles
     top_p: float = 0.9  # Nucleus sampling parameter
     frequency_penalty: float = 0.1  # Reduce repetition
     presence_penalty: float = 0.0  # Encourage new topics
@@ -499,6 +501,57 @@ class DeepSeekClient:
             }
         else:
             logger.error(f"[LLM] Failed to generate email analysis: {result.get('error')}")
+            return {
+                'success': False,
+                'error': result.get('error'),
+                'content': None
+            }
+
+    def generate_full_article(
+        self,
+        weekly_data: Dict,
+        all_analyses: List[Dict]
+    ) -> Dict:
+        """
+        生成完整的3000字周报文章
+
+        Args:
+            weekly_data: 本周汇总数据
+            all_analyses: 所有邮件分析结果
+
+        Returns:
+            包含成功状态、文章内容和使用量的字典
+        """
+        from .prompts import VCPEPromptTemplates
+
+        prompt_templates = VCPEPromptTemplates()
+        messages = prompt_templates.get_full_article_prompt(weekly_data, all_analyses)
+
+        logger.info(f"[LLM] Generating full article ({len(all_analyses)} emails, 3000+ words)")
+
+        # 使用更长的 token 限制支持长文章生成
+        result = self.chat_completion(
+            messages=messages,
+            max_tokens=self.config.max_tokens_long + 2000  # 超长文章需要更多 tokens
+        )
+
+        if result['success']:
+            content = result['content']
+            word_count = len(content)
+            logger.info(f"[LLM] Full article generated ({word_count} chars, {result.get('usage', {}).get('total_tokens', 'N/A')} tokens)")
+
+            # 验证字数是否达标
+            if word_count < 2000:
+                logger.warning(f"[LLM] Article may be too short: {word_count} chars (target: 3000+)")
+
+            return {
+                'success': True,
+                'content': content,
+                'word_count': word_count,
+                'usage': result.get('usage', {})
+            }
+        else:
+            logger.error(f"[LLM] Failed to generate full article: {result.get('error')}")
             return {
                 'success': False,
                 'error': result.get('error'),

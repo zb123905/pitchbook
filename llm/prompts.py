@@ -662,3 +662,125 @@ Respond ONLY with valid JSON."""
         ]
 
         return messages
+
+    def get_full_article_prompt(
+        self,
+        weekly_data: Dict,
+        all_analyses: List[Dict]
+    ) -> List[Dict[str, str]]:
+        """
+        生成完整的3000字VC/PE行业周报文章
+        
+        Args:
+            weekly_data: 本周汇总数据
+            all_analyses: 所有邮件分析结果
+            
+        Returns:
+            Messages列表
+        """
+        # 获取基本信息
+        time_range = weekly_data.get('time_range', '本周')
+        total_emails = len(all_analyses)
+        sentiment = weekly_data.get('overall_sentiment', 'neutral')
+        
+        # 统计关键信息
+        all_topics = set()
+        all_industries = set()
+        all_deals = []
+        key_insights_list = []
+        
+        for analysis in all_analyses:
+            all_topics.update(analysis.get('key_topics', []))
+            all_industries.update(analysis.get('industries', []))
+            all_deals.extend(analysis.get('investment_deals', []))
+            key_insights_list.extend(analysis.get('key_insights', []))
+        
+        # 构建交易信息
+        deals_summary = ""
+        if all_deals:
+            deals_summary = "## 本周重要交易摘要\n\n"
+            for deal in all_deals[:10]:
+                deals_summary += f"""
+**{deal.get('company', '未知公司')}** - {deal.get('round', '未知轮次')}
+- 投资金额: {deal.get('amount', '未披露')}
+- 投资方: {', '.join(deal.get('investors', ['未披露']))}
+- 估值: {deal.get('valuation', '未披露')}
+- 行业: {deal.get('industry', '未知')}
+"""
+        
+        # 构建行业分布
+        industries_summary = "## 本周活跃行业\n\n"
+        for industry in list(all_industries)[:8]:
+            industries_summary += f"- **{industry}**\n"
+        
+        # 构建关键主题
+        topics_summary = "## 本周关键主题\n\n"
+        for topic in list(all_topics)[:10]:
+            topics_summary += f"- {topic}\n"
+        
+        prompt = f"""请基于以下VC/PE市场数据，生成一份完整的行业周报文章（要求3000字以上）。
+
+## 报告基本信息
+- 报告周期: {time_range}
+- 分析邮件数: {total_emails} 封
+- 整体市场情绪: {sentiment}
+
+{industries_summary}
+
+{topics_summary}
+
+{deals_summary}
+
+## 关键洞察汇总
+{chr(10).join([f'- {insight}' for insight in key_insights_list[:15]])}
+
+## 文章要求（3000字以上）
+
+请按以下结构生成完整的周报文章：
+
+### 一、执行摘要（400字）
+- 本周市场整体概况
+- 最重要的3-5条信息提炼
+- 市场情绪判断和依据
+
+### 二、市场深度分析（800字）
+- 各行业板块表现分析
+- 资金流向趋势
+- 投资阶段分布特点
+- 与上周/上月对比变化
+
+### 三、重点交易解读（600字）
+- 选取3-5个代表性交易进行深度分析
+- 交易背后的市场信号
+- 对相关赛道的影响评估
+
+### 四、行业趋势洞察（600字）
+- 本周显现的新趋势
+- 投资机构布局方向变化
+- 创业公司融资环境分析
+
+### 五、投资机会与风险（400字）
+- 值得关注的赛道和细分领域
+- 需要警惕的风险因素
+- 对不同类型投资者的建议
+
+### 六、下周展望（200字）
+- 重点事件预告
+- 市场关注焦点预测
+
+请使用专业但不晦涩的语言，确保文章既有数据支撑，又有深度洞察，适合行业从业者阅读。文章要求原创、有见地，避免简单罗列信息。"""
+
+        messages = [
+            {"role": "system", "content": """你是一位资深 VC/PE 行业分析师，擅长撰写深度的行业研究报告。
+你的文章具有以下特点：
+1. 数据扎实，每项观点都有依据
+2. 洞察深刻，能发现表面数据背后的趋势
+3. 语言流畅，专业术语使用准确
+4. 结构清晰，逻辑严密
+5. 原创性强，避免套话空话
+
+请始终用中文撰写，确保文章达到3000字以上。"""},
+            {"role": "user", "content": prompt}
+        ]
+        
+        return messages
