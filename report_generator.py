@@ -56,7 +56,7 @@ def get_llm_client():
 class WeeklyReportGenerator:
     """Weekly Market Observation Report Generator (Enhanced with Charts)"""
 
-    def __init__(self, enable_charts: bool = True, use_llm: bool = True, use_template: bool = True):
+    def __init__(self, enable_charts: bool = True, use_llm: bool = True, use_template: bool = True, enable_full_article: bool = True):
         """
         Initialize report generator
 
@@ -64,10 +64,12 @@ class WeeklyReportGenerator:
             enable_charts: Whether to include visualization charts (Phase 3 feature)
             use_llm: Whether to use LLM for content generation (default: True)
             use_template: Whether to use cat background template (default: True)
+            enable_full_article: Whether to generate 3000+ word AI article (default: True)
         """
         self.enable_charts = enable_charts and VISUALIZATION_AVAILABLE
         self.use_llm = use_llm and config.ENABLE_LLM_ANALYSIS
         self.use_template = use_template
+        self.enable_full_article = enable_full_article and use_llm  # Full article requires LLM
         self.visualizer = None  # Will be loaded lazily
         self.trend_analyzer = None  # Will be loaded lazily
 
@@ -77,6 +79,7 @@ class WeeklyReportGenerator:
             if self.llm_client is None:
                 logger.warning("LLM requested but not available, will use fallback mode")
                 self.use_llm = False
+                self.enable_full_article = False  # Cannot generate article without LLM
         else:
             self.llm_client = None
 
@@ -171,6 +174,52 @@ class WeeklyReportGenerator:
                 if line.strip():
                     WordStyler.apply_body_style(doc, line.strip(), indent=True)
 
+            # Add full AI article (NEW - 3000+ words)
+            if self.enable_full_article:
+                full_article = self._generate_full_article(analyses, market_overview or {})
+                if full_article:
+                    doc.add_page_break()
+                    WordStyler.apply_heading_style(doc, 'AI深度分析报告', level=1, emoji='🤖')
+                    WordStyler.add_section_divider(doc)
+
+                    # Add article intro
+                    intro = doc.add_paragraph()
+                    intro.add_run('以下是由AI生成的3000字深度分析报告，涵盖市场全景、投资趋势、行业洞察与投资建议。').italic = True
+                    WordStyler.set_spacing(intro, line_spacing=config.LINE_SPACING, before=Pt(6))
+                    WordStyler.set_color(intro.runs[0], config.COLOR_TEXT_LIGHT)
+
+                    # Add article content paragraph by paragraph
+                    for paragraph in full_article.split('\n\n'):
+                        if paragraph.strip():
+                            # Check if this is a heading
+                            if paragraph.strip().startswith('###') or paragraph.strip().startswith('##'):
+                                heading_text = paragraph.strip().lstrip('#').strip()
+                                # Determine heading level
+                                if paragraph.startswith('###'):
+                                    WordStyler.apply_heading_style(doc, heading_text, level=3)
+                                else:
+                                    WordStyler.apply_heading_style(doc, heading_text, level=2)
+                            else:
+                                # Regular paragraph
+                                p = doc.add_paragraph()
+                                for line in paragraph.split('\n'):
+                                    if line.strip():
+                                        # Check for bold text markers
+                                        if line.strip().startswith('**') and line.strip().endswith('**'):
+                                            bold_text = line.strip().replace('**', '')
+                                            run = p.add_run(bold_text + ' ')
+                                            run.bold = True
+                                        elif line.strip().startswith('- '):
+                                            # Bullet point
+                                            run = p.add_run(line.strip() + '\n')
+                                        elif line.strip().startswith(('1. ', '2. ', '3. ', '4. ', '5. ', '6. ')):
+                                            # Numbered list item
+                                            run = p.add_run(line.strip() + '\n')
+                                            run.bold = True
+                                        else:
+                                            run = p.add_run(line.strip() + '\n')
+                                WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING, after=Pt(6))
+
             # Add market overview
             WordStyler.apply_heading_style(doc, '市场概览', level=1, emoji='🌐')
             WordStyler.add_section_divider(doc)
@@ -264,9 +313,11 @@ class WeeklyReportGenerator:
 
             # 保存文档
             if output_path is None:
+                # Add suffix for full article reports
+                suffix = "_完整报告" if self.enable_full_article and full_article else ""
                 output_path = os.path.join(
                     config.SUMMARY_REPORT_DIR,
-                    f'VC_PE_Weekly_AI分析_{datetime.now().strftime("%Y%m%d_%H%M%S")}.docx'
+                    f'VC_PE_Weekly_AI分析_{datetime.now().strftime("%Y%m%d_%H%M%S")}{suffix}.docx'
                 )
 
             doc.save(output_path)
@@ -460,6 +511,55 @@ class WeeklyReportGenerator:
         content_lines.append("   - 关注新兴技术和商业模式的发展")
 
         return "\n".join(content_lines)
+
+    def _generate_full_article(self, analyses, market_overview):
+        """
+        Generate complete 3000+ word article using LLM
+
+        Args:
+            analyses: List of analysis results
+            market_overview: Market overview data
+
+        Returns:
+            Full article content as string
+        """
+        if not self.use_llm or not self.llm_client:
+            logger.warning("LLM not available, cannot generate full article")
+            return None
+
+        try:
+            logger.info("Using LLM to generate full 3000+ word article...")
+
+            # Prepare weekly data
+            weekly_data = {
+                'time_range': '本周',
+                'overall_sentiment': market_overview.get('market_sentiment', 'neutral'),
+                'total_emails': len(analyses)
+            }
+
+            # Generate full article
+            result = self.llm_client.generate_full_article(weekly_data, analyses)
+
+            if result['success']:
+                word_count = result.get('word_count', 0)
+                logger.info(f"✓ Full article generated ({word_count} chars)")
+
+                # Warn if article is too short
+                if word_count < 2000:
+                    logger.warning(f"Article is shorter than expected: {word_count} chars (target: 3000+)")
+                elif word_count >= 3000:
+                    logger.info(f"✓ Article meets 3000+ word requirement: {word_count} chars")
+
+                return result['content']
+            else:
+                logger.error(f"Failed to generate full article: {result.get('error')}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error generating full article: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
     def _sentiment_chinese(self, sentiment):
         """Convert market sentiment to Chinese"""
