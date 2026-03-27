@@ -10,6 +10,15 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import json
 
+# Import config for token limits
+try:
+    import config
+    MAX_TOKENS_DEFAULT = getattr(config, 'LLM_MAX_TOKENS', 3000)
+    MAX_TOKENS_LONG = getattr(config, 'LLM_MAX_TOKENS_LONG', 6000)
+except ImportError:
+    MAX_TOKENS_DEFAULT = 3000
+    MAX_TOKENS_LONG = 6000
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +32,8 @@ class APIConfig:
     max_retries: int = 3
     retry_delay_base: float = 2.0  # Base for exponential backoff
     temperature: float = 0.2  # Lower temperature for more focused output
-    max_tokens: int = 3000  # Increased for more detailed analysis
+    max_tokens: int = MAX_TOKENS_DEFAULT  # Default token limit
+    max_tokens_long: int = MAX_TOKENS_LONG  # For long reports
     top_p: float = 0.9  # Nucleus sampling parameter
     frequency_penalty: float = 0.1  # Reduce repetition
     presence_penalty: float = 0.0  # Encourage new topics
@@ -325,6 +335,175 @@ class DeepSeekClient:
             'response': result.get('content'),
             'error': result.get('error')
         }
+
+
+    def generate_executive_summary(
+        self,
+        analyses: List[Dict],
+        time_range: str = "本周"
+    ) -> Dict[str, Any]:
+        """
+        Generate executive summary using LLM
+
+        Args:
+            analyses: List of analysis results
+            time_range: Time period description
+
+        Returns:
+            Dict with success status and content
+        """
+        from .prompts import VCPEPromptTemplates
+
+        prompt_templates = VCPEPromptTemplates()
+        messages = prompt_templates.get_executive_summary_prompt(analyses, time_range)
+
+        logger.info(f"[LLM] Generating executive summary for {len(analyses)} analyses")
+
+        result = self.chat_completion(
+            messages=messages,
+            max_tokens=self.config.max_tokens_long
+        )
+
+        if result['success']:
+            logger.info(f"[LLM] Executive summary generated ({result.get('usage', {}).get('total_tokens', 'N/A')} tokens)")
+            return {
+                'success': True,
+                'content': result['content'],
+                'usage': result.get('usage', {})
+            }
+        else:
+            logger.error(f"[LLM] Failed to generate executive summary: {result.get('error')}")
+            return {
+                'success': False,
+                'error': result.get('error'),
+                'content': None
+            }
+
+    def generate_key_trends(
+        self,
+        analyses: List[Dict],
+        time_range: str = "本周"
+    ) -> Dict[str, Any]:
+        """
+        Generate key trends analysis using LLM
+
+        Args:
+            analyses: List of analysis results
+            time_range: Time period description
+
+        Returns:
+            Dict with success status and content
+        """
+        from .prompts import VCPEPromptTemplates
+
+        prompt_templates = VCPEPromptTemplates()
+        messages = prompt_templates.get_key_trends_prompt(analyses, time_range)
+
+        logger.info(f"[LLM] Generating key trends for {len(analyses)} analyses")
+
+        result = self.chat_completion(
+            messages=messages,
+            max_tokens=self.config.max_tokens_long
+        )
+
+        if result['success']:
+            logger.info(f"[LLM] Key trends generated ({result.get('usage', {}).get('total_tokens', 'N/A')} tokens)")
+            return {
+                'success': True,
+                'content': result['content'],
+                'usage': result.get('usage', {})
+            }
+        else:
+            logger.error(f"[LLM] Failed to generate key trends: {result.get('error')}")
+            return {
+                'success': False,
+                'error': result.get('error'),
+                'content': None
+            }
+
+    def generate_recommendations(
+        self,
+        analyses: List[Dict],
+        time_range: str = "本周"
+    ) -> Dict[str, Any]:
+        """
+        Generate investment recommendations using LLM
+
+        Args:
+            analyses: List of analysis results
+            time_range: Time period description
+
+        Returns:
+            Dict with success status and content
+        """
+        from .prompts import VCPEPromptTemplates
+
+        prompt_templates = VCPEPromptTemplates()
+        messages = prompt_templates.get_recommendations_prompt(analyses, time_range)
+
+        logger.info(f"[LLM] Generating recommendations for {len(analyses)} analyses")
+
+        result = self.chat_completion(
+            messages=messages,
+            max_tokens=self.config.max_tokens_long
+        )
+
+        if result['success']:
+            logger.info(f"[LLM] Recommendations generated ({result.get('usage', {}).get('total_tokens', 'N/A')} tokens)")
+            return {
+                'success': True,
+                'content': result['content'],
+                'usage': result.get('usage', {})
+            }
+        else:
+            logger.error(f"[LLM] Failed to generate recommendations: {result.get('error')}")
+            return {
+                'success': False,
+                'error': result.get('error'),
+                'content': None
+            }
+
+    def generate_email_analysis(
+        self,
+        analysis: Dict,
+        email_index: int
+    ) -> Dict[str, Any]:
+        """
+        Generate deep email analysis using LLM
+
+        Args:
+            analysis: Single analysis result
+            email_index: Email index number
+
+        Returns:
+            Dict with success status and content
+        """
+        from .prompts import VCPEPromptTemplates
+
+        prompt_templates = VCPEPromptTemplates()
+        messages = prompt_templates.get_email_analysis_prompt(analysis, email_index)
+
+        logger.info(f"[LLM] Generating deep analysis for email {email_index}")
+
+        result = self.chat_completion(
+            messages=messages,
+            max_tokens=self.config.max_tokens_long
+        )
+
+        if result['success']:
+            logger.info(f"[LLM] Email analysis generated ({result.get('usage', {}).get('total_tokens', 'N/A')} tokens)")
+            return {
+                'success': True,
+                'content': result['content'],
+                'usage': result.get('usage', {})
+            }
+        else:
+            logger.error(f"[LLM] Failed to generate email analysis: {result.get('error')}")
+            return {
+                'success': False,
+                'error': result.get('error'),
+                'content': None
+            }
 
 
 def get_default_client() -> Optional[DeepSeekClient]:

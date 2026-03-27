@@ -120,16 +120,11 @@ class WeeklyReportGenerator:
             analyses = []
 
         try:
-            # 创建Word文档 - 使用模板作为基础
-            if self.use_template and os.path.exists(config.CAT_BACKGROUND_TEMPLATE):
-                # Load from template
-                doc = Document(config.CAT_BACKGROUND_TEMPLATE)
-                logger.info("Using cat background template for document")
-            else:
-                # Create new document
-                doc = Document()
+            # 创建Word文档 - 始终创建新文档（不使用模板作为基础）
+            doc = Document()
+            logger.info("Created new document (background will be applied via styling if enabled)")
 
-            # Apply professional styling
+            # Apply professional styling (includes background if use_template=True)
             apply_professional_styling_to_word(doc, use_template=self.use_template)
 
             # Set default font to Microsoft YaHei
@@ -261,7 +256,11 @@ class WeeklyReportGenerator:
 
             WordStyler.apply_body_style(doc, '报告生成信息:', bold_prefix='')
             WordStyler.apply_body_style(doc, f'生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', bold_prefix='')
-            WordStyler.apply_body_style(doc, '报告版本: v4.0 (专业格式 + 猫背景)', bold_prefix='')
+            WordStyler.apply_body_style(doc, '报告版本: v4.1 (专业格式 + 猫背景)', bold_prefix='')
+
+            # Add DeepSeek attribution if LLM was used
+            if self.use_llm and self.llm_client:
+                WordStyler.apply_body_style(doc, 'AI 分析: 本报告内容部分由 DeepSeek AI 生成', bold_prefix='')
 
             # 保存文档
             if output_path is None:

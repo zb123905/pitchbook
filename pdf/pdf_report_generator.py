@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 from pdf.font_manager import get_font_manager
 from pdf.chart_generator import ChartGenerator
 from report_generator import WeeklyReportGenerator
+import config
+from styling_utils import PDFStyler
 
 
 class PDFReportGenerator(WeeklyReportGenerator):
@@ -42,15 +44,37 @@ class PDFReportGenerator(WeeklyReportGenerator):
     - Appendix with data sources
     """
 
-    def __init__(self, enable_charts: bool = True):
+    def __init__(self, enable_charts: bool = True, use_llm: bool = False, use_template: bool = True):
         """
         Initialize PDF report generator
 
         Args:
             enable_charts: Whether to include visualization charts
+            use_llm: Whether to use LLM for content generation
+            use_template: Whether to use background template (default: True)
         """
-        # Call parent constructor but don't init Word-specific stuff
+        # Initialize parent class attributes
         self.enable_charts = enable_charts
+        self.use_llm = use_llm
+        self.use_template = use_template  # Allow background template control
+
+        # Initialize LLM client if enabled
+        if self.use_llm:
+            try:
+                from llm.deepseek_client import get_default_client
+                self.llm_client = get_default_client()
+                if self.llm_client and not self.llm_client.is_available():
+                    self.llm_client = None
+                    logger.warning("LLM client not available for PDF report")
+            except Exception as e:
+                logger.warning(f"Failed to initialize LLM client for PDF: {e}")
+                self.llm_client = None
+        else:
+            self.llm_client = None
+
+        # Get font manager
+        self.font_manager = get_font_manager()
+        self.font_config = self.font_manager.get_font_config()
 
         # Get font manager
         self.font_manager = get_font_manager()
@@ -71,7 +95,7 @@ class PDFReportGenerator(WeeklyReportGenerator):
         self.styles = self._setup_styles()
 
     def _setup_styles(self):
-        """Setup paragraph styles for PDF"""
+        """Setup paragraph styles for PDF using config constants"""
         styles = getSampleStyleSheet()
 
         # Get font config
@@ -79,24 +103,27 @@ class PDFReportGenerator(WeeklyReportGenerator):
         font_bold = self.font_config['bold_font']
         font_title = self.font_config['title_font']
 
-        # Custom styles
+        # Get style config from config.py
+        style_config = PDFStyler.create_style_dict()
+
+        # Custom styles using config constants
         styles.add(ParagraphStyle(
             name='CustomTitle',
             parent=styles['Heading1'],
             fontName=font_title,
-            fontSize=24,
-            textColor=colors.HexColor('#2C3E50'),
+            fontSize=config.FONT_SIZE_MAIN_TITLE,
+            textColor=PDFStyler.get_color(config.COLOR_ACCENT_BLUE),
             spaceAfter=30,
             alignment=TA_CENTER,
-            leading=32
+            leading=int(config.FONT_SIZE_MAIN_TITLE * 1.5)
         ))
 
         styles.add(ParagraphStyle(
             name='CustomHeading1',
             parent=styles['Heading1'],
             fontName=font_bold,
-            fontSize=18,
-            textColor=colors.HexColor('#E74C3C'),
+            fontSize=config.FONT_SIZE_HEADING1,
+            textColor=PDFStyler.get_color(config.COLOR_ACCENT_BLUE),
             spaceAfter=12,
             spaceBefore=20
         ))
@@ -105,8 +132,8 @@ class PDFReportGenerator(WeeklyReportGenerator):
             name='CustomHeading2',
             parent=styles['Heading2'],
             fontName=font_bold,
-            fontSize=14,
-            textColor=colors.HexColor('#3498DB'),
+            fontSize=config.FONT_SIZE_HEADING2,
+            textColor=PDFStyler.get_color(config.COLOR_TEXT_DARK),
             spaceAfter=10,
             spaceBefore=15
         ))
@@ -115,18 +142,18 @@ class PDFReportGenerator(WeeklyReportGenerator):
             name='CustomBody',
             parent=styles['BodyText'],
             fontName=font_normal,
-            fontSize=11,
-            textColor=colors.black,
+            fontSize=config.FONT_SIZE_BODY,
+            textColor=PDFStyler.get_color(config.COLOR_TEXT_DARK),
             spaceAfter=8,
-            leading=16
+            leading=int(config.FONT_SIZE_BODY * config.LINE_SPACING)
         ))
 
         styles.add(ParagraphStyle(
             name='CustomCaption',
             parent=styles['BodyText'],
             fontName=font_normal,
-            fontSize=9,
-            textColor=colors.gray,
+            fontSize=config.FONT_SIZE_DATA,
+            textColor=PDFStyler.get_color(config.COLOR_TEXT_DARK),
             alignment=TA_CENTER,
             spaceAfter=15
         ))
@@ -167,14 +194,15 @@ class PDFReportGenerator(WeeklyReportGenerator):
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         try:
-            # Create PDF document
+            # Create PDF document with config margins
+            from reportlab.lib.units import cm
             doc = SimpleDocTemplate(
                 output_path,
                 pagesize=A4,
-                rightMargin=0.75*inch,
-                leftMargin=0.75*inch,
-                topMargin=0.75*inch,
-                bottomMargin=0.75*inch
+                rightMargin=config.MARGIN_RIGHT_CM * cm,
+                leftMargin=config.MARGIN_LEFT_CM * cm,
+                topMargin=config.MARGIN_TOP_CM * cm,
+                bottomMargin=config.MARGIN_BOTTOM_CM * cm
             )
 
             # Build document content
@@ -199,8 +227,12 @@ class PDFReportGenerator(WeeklyReportGenerator):
 
             story.extend(self._create_recommendations(analyses))
 
-            # Build PDF
-            doc.build(story, onFirstPage=self._add_page_footer, onLaterPages=self._add_page_footer)
+            # Build PDF with background and footer on all pages
+            doc.build(
+                story,
+                onFirstPage=self._add_all_pages_decorations,
+                onLaterPages=self._add_all_pages_decorations
+            )
 
             logger.info(f"✓ PDF report generated: {output_path}")
             return output_path
@@ -230,22 +262,27 @@ class PDFReportGenerator(WeeklyReportGenerator):
 
         # Report info
         report_date = datetime.now().strftime('%Y年%m月%d日')
+        version_text = 'v4.1 (PDF + Charts + NLP + 猫背景)' if self.use_template else 'v4.1 (PDF + Charts + NLP)'
         info_data = [
             ['报告日期 (Report Date)', report_date],
             ['分析项目数 (Items Analyzed)', str(len(analyses))],
             ['生成时间 (Generated)', datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
-            ['报告版本 (Version)', 'v4.0 (PDF + Charts + NLP)']
+            ['报告版本 (Version)', version_text]
         ]
+
+        # Add AI attribution if LLM is used
+        if self.use_llm:
+            info_data.append(['AI 分析 (AI Analysis)', 'DeepSeek AI'])
 
         info_table = Table(info_data, colWidths=[2.5*inch, 3*inch])
         info_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#ECF0F1')),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.black),
+            ('BACKGROUND', (0, 0), (0, -1), PDFStyler.get_color(config.COLOR_HIGHLIGHT_BG)),
+            ('TEXTCOLOR', (0, 0), (0, -1), PDFStyler.get_color(config.COLOR_TEXT_DARK)),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, -1), self.font_config['default_font']),
-            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('FONTSIZE', (0, 0), (-1, -1), config.FONT_SIZE_BODY),
             ('PAD', (0, 0), (-1, -1), 6),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.gray)
+            ('GRID', (0, 0), (-1, -1), 0.5, PDFStyler.get_color(config.COLOR_DIVIDER))
         ]))
 
         story.append(info_table)
@@ -320,13 +357,13 @@ class PDFReportGenerator(WeeklyReportGenerator):
 
             type_table = Table(type_data, colWidths=[2.5*inch, 1*inch, 1.5*inch])
             type_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#3498DB')),
-                ('TEXTCOLOR', (0, 0), (0, -1), colors.white),
+                ('BACKGROUND', (0, 0), (0, -1), PDFStyler.get_color(config.COLOR_ACCENT_BLUE)),
+                ('TEXTCOLOR', (0, 0), (0, -1), colors.white),  # White text on blue background
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (-1, -1), self.font_config['default_font']),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('FONTSIZE', (0, 0), (-1, -1), config.FONT_SIZE_DATA),
                 ('PAD', (0, 0), (-1, -1), 6),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.gray)
+                ('GRID', (0, 0), (-1, -1), 0.5, PDFStyler.get_color(config.COLOR_DIVIDER))
             ]))
 
             story.append(type_table)
@@ -421,9 +458,9 @@ class PDFReportGenerator(WeeklyReportGenerator):
                 metadata_table = Table(metadata, colWidths=[1.5*inch, 4*inch])
                 metadata_table.setStyle(TableStyle([
                     ('FONTNAME', (0, 0), (-1, -1), self.font_config['default_font']),
-                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('FONTSIZE', (0, 0), (-1, -1), config.FONT_SIZE_DATA),
                     ('PAD', (0, 0), (-1, -1), 3),
-                    ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey)
+                    ('GRID', (0, 0), (-1, -1), 0.5, PDFStyler.get_color(config.COLOR_DIVIDER))
                 ]))
                 story.append(metadata_table)
                 story.append(Spacer(1, 0.1*inch))
@@ -532,10 +569,15 @@ class PDFReportGenerator(WeeklyReportGenerator):
         story.append(p)
         p = Paragraph(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", self.styles['CustomBody'])
         story.append(p)
-        p = Paragraph("报告版本: v4.0 (PDF + Charts + NLP + Visualization)", self.styles['CustomBody'])
+        p = Paragraph("报告版本: v4.1 (专业格式 + 猫背景)", self.styles['CustomBody'])
         story.append(p)
         p = Paragraph("系统: VC/PE PitchBook 自动化分析系统", self.styles['CustomBody'])
         story.append(p)
+
+        # Add DeepSeek attribution if LLM was used
+        if self.use_llm:
+            p = Paragraph("AI 分析: 本报告内容部分由 DeepSeek AI 生成", self.styles['CustomBody'])
+            story.append(p)
 
         return story
 
@@ -546,20 +588,94 @@ class PDFReportGenerator(WeeklyReportGenerator):
         # Save state
         canvas.saveState()
 
-        # Footer line
-        canvas.setStrokeColorRGB(0.8, 0.8, 0.8)
-        canvas.line(0.75*inch, 0.5*inch, 7.25*inch, 0.5*inch)
+        # Footer line using config divider color
+        divider_color = PDFStyler.get_color(config.COLOR_DIVIDER)
+        canvas.setStrokeColor(divider_color)
+        canvas.line(config.MARGIN_LEFT_CM * inch/2.54, 0.5*inch,
+                   (8.27 - config.MARGIN_RIGHT_CM) * inch, 0.5*inch)
 
         # Page number
         page_num = canvas.getPageNumber()
         footer_text = f"第 {page_num} 页 | VC/PE PitchBook 自动化分析系统"
 
-        canvas.setFont(self.font_config['default_font'], 9)
-        canvas.setFillColorRGB(0.5, 0.5, 0.5)
-        canvas.drawString(0.75*inch, 0.35*inch, footer_text)
+        canvas.setFont(self.font_config['default_font'], config.FONT_SIZE_DATA)
+
+        # Use config text dark color
+        text_color = PDFStyler.get_color(config.COLOR_TEXT_DARK)
+        canvas.setFillColor(text_color)
+        canvas.drawString(config.MARGIN_LEFT_CM * inch/2.54, 0.35*inch, footer_text)
 
         # Restore state
         canvas.restoreState()
+
+    def _add_page_background(self, canvas, doc):
+        """
+        Add cat background image with transparency to each page
+        Only applies if self.use_template is True
+        """
+        # Skip if template is disabled
+        if not self.use_template:
+            return
+
+        from reportlab.lib.units import inch
+
+        try:
+            # Load background image from template
+            manager = BackgroundTemplateManager()
+            image_data = manager._load_template()
+
+            if image_data:
+                # Save to temp file
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                    f.write(image_data)
+                    temp_image_path = f.name
+
+                canvas.saveState()
+
+                # Set background transparency (50%-70%)
+                canvas.setFillAlpha(config.BACKGROUND_TRANSPARENCY_PDF)
+
+                # Get page dimensions
+                page_width = canvas._pagesize[0]
+                page_height = canvas._pagesize[1]
+
+                # Draw background image
+                canvas.drawImage(
+                    temp_image_path,
+                    0, 0,
+                    width=page_width,
+                    height=page_height,
+                    preserveAspectRatio=True
+                )
+
+                canvas.restoreState()
+
+                # Draw content white semi-transparent overlay (80%)
+                if config.CONTENT_OVERLAY_ENABLED:
+                    canvas.saveState()
+                    canvas.setFillAlpha(config.CONTENT_OVERLAY_TRANSPARENCY)
+
+                    # Calculate content area (within margins)
+                    left = config.MARGIN_LEFT_CM * inch / 2.54
+                    bottom = config.MARGIN_BOTTOM_CM * inch / 2.54
+                    width = (8.27 - config.MARGIN_LEFT_CM - config.MARGIN_RIGHT_CM) * inch / 2.54
+                    height = (11.69 - config.MARGIN_TOP_CM - config.MARGIN_BOTTOM_CM) * inch / 2.54
+
+                    canvas.setFillColor(colors.white)
+                    canvas.rect(left, bottom, width, height, fill=1, stroke=0)
+
+                    canvas.restoreState()
+
+        except Exception as e:
+            logger.debug(f"Background not applied: {e}")
+
+    def _add_all_pages_decorations(self, canvas, doc):
+        """
+        Apply all page decorations (background + footer) to each page
+        """
+        self._add_page_background(canvas, doc)
+        self._add_page_footer(canvas, doc)
 
 
 # Demo

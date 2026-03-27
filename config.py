@@ -77,3 +77,58 @@ LLM_FALLBACK_TO_NLP = True  # API失败时降级到本地NLP
 LLM_MAX_RETRIES = int(os.getenv('DEEPSEEK_MAX_RETRIES', '3'))  # 最大重试次数
 LLM_TIMEOUT = int(os.getenv('DEEPSEEK_TIMEOUT', '30'))  # 超时时间（秒）
 LLM_TEMPERATURE = float(os.getenv('DEEPSEEK_TEMPERATURE', '0.3'))  # 采样温度
+LLM_MAX_TOKENS = int(os.getenv('DEEPSEEK_MAX_TOKENS', '3000'))  # 默认token限制
+LLM_MAX_TOKENS_LONG = int(os.getenv('DEEPSEEK_MAX_TOKENS_LONG', '6000'))  # 长报告token限制
+
+# ================= Professional Formatting Configuration =================
+
+# Page Settings (in centimeters)
+MARGIN_TOP_CM = 2.5
+MARGIN_BOTTOM_CM = 2.5
+MARGIN_LEFT_CM = 2.0
+MARGIN_RIGHT_CM = 2.0
+
+# Template Path
+CAT_BACKGROUND_TEMPLATE = r'D:\模拟c盘\猫通用背景板.docx'
+
+# Typography - Microsoft YaHei Focus
+FONT_MAIN_TITLE = '微软雅黑'
+FONT_HEADING1 = '微软雅黑'
+FONT_HEADING2 = '微软雅黑'
+FONT_BODY = '微软雅黑'
+FONT_DATA = '等线'
+
+# Font Sizes (points)
+FONT_SIZE_MAIN_TITLE = 22  # pt (二号)
+FONT_SIZE_HEADING1 = 15    # pt (小三)
+FONT_SIZE_HEADING2 = 14    # pt (四号)
+FONT_SIZE_BODY = 12        # pt (小四)
+FONT_SIZE_DATA = 10.5      # pt (五号)
+
+# Color Scheme
+COLOR_TEXT_DARK = '#333333'      # Dark gray for body text
+COLOR_ACCENT_BLUE = '#0066CC'    # Deep blue for titles/keywords
+COLOR_DIVIDER = '#EEEEEE'        # Light gray for dividers
+COLOR_HIGHLIGHT_BG = '#E6F3FF'   # Light blue background
+COLOR_BORDER_LIGHT = '#DDDDDD'   # Light border color
+
+# Spacing
+LINE_SPACING = 1.5               # 1.5x line spacing
+SPACING_BEFORE_PARA = 0.5        # lines
+SPACING_AFTER_PARA = 0.5         # lines
+FIRST_LINE_INDENT_CHARS = 2      # 2 characters
+
+# Background Settings
+BACKGROUND_TRANSPARENCY = 0.6    # 50-70%
+CONTENT_OVERLAY_TRANSPARENCY = 0.8  # 80%
+
+# Content Overlay Settings
+CONTENT_OVERLAY_COLOR = 'FFFFFF'  # White overlay color (hex)
+CONTENT_OVERLAY_ENABLED = True    # Enable white semi-transparent overlay on content
+
+# Background Transparency Range (for different output formats)
+BACKGROUND_TRANSPARENCY_MIN = 0.5  # 50% minimum
+BACKGROUND_TRANSPARENCY_MAX = 0.7  # 70% maximum
+BACKGROUND_TRANSPARENCY_DEFAULT = 0.6  # 60% default
+BACKGROUND_TRANSPARENCY_WORD = 0.6  # Word document (60%)
+BACKGROUND_TRANSPARENCY_PDF = 0.6  # PDF document (60%)

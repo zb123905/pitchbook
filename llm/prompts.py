@@ -289,3 +289,376 @@ Respond ONLY with valid JSON."""
             {"role": "system", "content": "You are a financial entity extraction expert."},
             {"role": "user", "content": prompt}
         ]
+
+    # ==================== Report Generation Prompts ====================
+
+    def get_executive_summary_prompt(
+        self,
+        analyses: List[Dict],
+        time_range: str = "本周"
+    ) -> List[Dict[str, str]]:
+        """
+        生成执行摘要的prompt（800字中文）
+
+        Args:
+            analyses: 分析结果列表
+            time_range: 时间范围
+
+        Returns:
+            Messages列表
+        """
+        # 构建上下文
+        total_count = len(analyses)
+        deal_count = sum(len(a.get('investment_deals', [])) for a in analyses)
+
+        # 提取热门主题
+        all_topics = []
+        for a in analyses:
+            all_topics.extend(a.get('key_topics', []))
+        from collections import Counter
+        top_topics = [t for t, c in Counter(all_topics).most_common(5)]
+
+        # 提取重点交易
+        notable_deals = []
+        for a in analyses:
+            for deal in a.get('investment_deals', [])[:3]:
+                notable_deals.append(f"{deal.get('company', '')} {deal.get('round', '')} {deal.get('amount', '')}")
+
+        prompt = f"""请基于以下VC/PE市场分析数据，生成一份专业的执行摘要（约800字中文）。
+
+## 分析周期
+{time_range}
+
+## 数据概览
+- 分析内容总数: {total_count}
+- 涉及交易数量: {deal_count}
+- 热门主题: {', '.join(top_topics)}
+- 重点交易: {'; '.join(notable_deals[:5])}
+
+## 各项详细分析
+
+"""
+
+        # 添加每个分析的摘要
+        for i, a in enumerate(analyses[:10], 1):
+            prompt += f"""
+### 内容 {i}
+- 类型: {a.get('content_type', '未知')}
+- 主题: {', '.join(a.get('key_topics', [])[:3])}
+- 市场情绪: {a.get('market_sentiment', '中性')}
+- 摘要: {a.get('summary_chinese', a.get('summary', ''))[:100]}
+"""
+
+        prompt += """
+## 要求的输出格式（纯文本，约800字）：
+
+请按以下结构生成执行摘要：
+
+1. **本周整体情况**（150字）
+   - 市场整体表现概述
+   - 交易活跃度分析
+   - 投资者情绪判断
+
+2. **重点交易概述**（250字）
+   - 大额融资交易详情
+   - 重要并购事件
+   - 亮点项目分析
+
+3. **热门赛道分析**（200字）
+   - 本周最热门的投资领域
+   - 赛道活跃度变化
+   - 新兴趋势识别
+
+4. **市场情绪研判**（200字）
+   - 整体市场情绪（积极/中性/消极）
+   - 影响因素分析
+   - 后续走势预判
+
+请使用专业的VC/PE行业术语，保持客观中立的语调，用中文撰写所有内容。"""
+
+        messages = [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+
+        return messages
+
+    def get_key_trends_prompt(
+        self,
+        analyses: List[Dict],
+        time_range: str = "本周"
+    ) -> List[Dict[str, str]]:
+        """
+        生成关键趋势分析的prompt（600字中文）
+
+        Args:
+            analyses: 分析结果列表
+            time_range: 时间范围
+
+        Returns:
+            Messages列表
+        """
+        from collections import Counter
+
+        # 统计内容类型
+        content_types = [a.get('content_type', '') for a in analyses]
+        type_counts = Counter(content_types)
+
+        # 统计热门行业
+        all_industries = []
+        for a in analyses:
+            all_industries.extend(a.get('industries', []))
+        industry_counts = Counter(all_industries)
+
+        # 统计投资阶段
+        all_rounds = []
+        for a in analyses:
+            for deal in a.get('investment_deals', []):
+                all_rounds.append(deal.get('round', ''))
+        round_counts = Counter(all_rounds)
+
+        # 市场情绪统计
+        sentiments = [a.get('market_sentiment', 'neutral') for a in analyses]
+        sentiment_counts = Counter(sentiments)
+
+        prompt = f"""请基于以下VC/PE市场数据，分析关键趋势（约600字中文）。
+
+## 分析周期
+{time_range}
+
+## 内容类型分布
+{dict(type_counts.most_common())}
+
+## 行业分布
+{dict(industry_counts.most_common(10))}
+
+## 投资阶段分布
+{dict(round_counts.most_common())}
+
+## 市场情绪分布
+{dict(sentiment_counts)}
+
+## 关键洞察汇总
+"""
+
+        # 添加各分析的关键洞察
+        for i, a in enumerate(analyses[:8], 1):
+            insights = a.get('key_insights', [])
+            if insights:
+                prompt += f"\n内容{i}: {insights[0] if insights else ''}"
+
+        prompt += """
+## 要求的输出格式（纯文本，约600字）：
+
+请按以下结构生成趋势分析：
+
+1. **赛道热度分析**（180字）
+   - 本周最热门的投资赛道
+   - 赛道热度变化趋势
+   - 跨赛道比较分析
+
+2. **投资阶段变化**（150字）
+   - 各阶段投资活跃度
+   - 早中后期项目分布
+   - 阶段偏好变化
+
+3. **估值趋势判断**（150字）
+   - 整体估值水平
+   - 大额交易估值特点
+   - 估值预期变化
+
+4. **政策与市场影响**（120字）
+   - 相关政策影响
+   - 市场环境变化
+   - 国际因素考量
+
+请使用专业的VC/PE行业术语，基于数据支撑你的判断，用中文撰写所有内容。"""
+
+        messages = [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+
+        return messages
+
+    def get_recommendations_prompt(
+        self,
+        analyses: List[Dict],
+        time_range: str = "本周"
+    ) -> List[Dict[str, str]]:
+        """
+        生成投资建议的prompt（400字中文）
+
+        Args:
+            analyses: 分析结果列表
+            time_range: 时间范围
+
+        Returns:
+            Messages列表
+        """
+        from collections import Counter
+
+        # 提取热门赛道
+        all_topics = []
+        for a in analyses:
+            all_topics.extend(a.get('key_topics', []))
+        hot_sectors = [t for t, c in Counter(all_topics).most_common(5)]
+
+        # 统计交易活跃度
+        deal_count = sum(len(a.get('investment_deals', [])) for a in analyses)
+
+        # 市场情绪
+        sentiments = [a.get('market_sentiment', 'neutral') for a in analyses]
+        from collections import Counter
+        overall_sentiment = Counter(sentiments).most_common(1)[0][0] if sentiments else 'neutral'
+
+        prompt = f"""请基于以下VC/PE市场数据，生成投资建议（约400字中文）。
+
+## 分析周期
+{time_range}
+
+## 市场概况
+- 交易总数: {deal_count}
+- 整体情绪: {overall_sentiment}
+- 热门赛道: {', '.join(hot_sectors)}
+
+## 市场观察要点
+
+"""
+
+        # 添加各分析的关键洞察
+        for i, a in enumerate(analyses[:5], 1):
+            insights = a.get('key_insights', [])
+            if insights:
+                prompt += f"\n观察点{i}: {insights[0]}"
+
+        prompt += """
+## 要求的输出格式（纯文本，约400字）：
+
+请按以下结构生成投资建议：
+
+1. **关注赛道建议**（120字）
+   - 值得重点关注的投资领域
+   - 有潜力的细分赛道
+   - 需要谨慎观望的领域
+
+2. **投资策略建议**（140字）
+   - 当前阶段适合的投资策略
+   - 投资节奏建议
+   - 项目筛选标准
+
+3. **风险控制建议**（140字）
+   - 主要风险点识别
+   - 风险规避策略
+   - 分散投资建议
+
+请基于市场数据给出务实的建议，避免空泛的表述，用中文撰写所有内容。"""
+
+        messages = [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+
+        return messages
+
+    def get_email_analysis_prompt(
+        self,
+        analysis: Dict,
+        email_index: int
+    ) -> List[Dict[str, str]]:
+        """
+        生成单封邮件深度分析的prompt（400字中文）
+
+        Args:
+            analysis: 单个邮件分析结果
+            email_index: 邮件序号
+
+        Returns:
+            Messages列表
+        """
+        subject = analysis.get('subject', '未知主题')
+        content_type = analysis.get('content_type', '未知类型')
+        topics = analysis.get('key_topics', [])
+        industries = analysis.get('industries', [])
+        deals = analysis.get('investment_deals', [])
+        companies = analysis.get('mentioned_companies', [])
+        summary = analysis.get('summary_chinese', analysis.get('summary', ''))
+        full_analysis = analysis.get('analysis_full', '')
+        insights = analysis.get('key_insights', [])
+        sentiment = analysis.get('market_sentiment', 'neutral')
+
+        # 构建交易信息
+        deal_info = ""
+        if deals:
+            for deal in deals[:3]:
+                deal_info += f"""
+    - 公司: {deal.get('company', '')}
+    - 轮次: {deal.get('round', '')}
+    - 金额: {deal.get('amount', '')}
+    - 投资方: {', '.join(deal.get('investors', []))}
+    - 估值: {deal.get('valuation', '未知')}
+"""
+
+        # 构建公司信息
+        company_info = ""
+        if companies:
+            company_info = "\n".join([f"- {c.get('name', '')} ({c.get('role', '')})" for c in companies[:5]])
+
+        prompt = f"""请对以下VC/PE行业邮件内容进行深度分析（约400字中文）。
+
+## 邮件基本信息
+- 邮件主题: {subject}
+- 内容类型: {content_type}
+- 市场情绪: {sentiment}
+
+## 分析结果
+- 关键主题: {', '.join(topics)}
+- 涉及行业: {', '.join(industries)}
+
+## 涉及的公司
+{company_info}
+
+## 交易详情
+{deal_info if deal_info else '无具体交易信息'}
+
+## 已有的AI分析摘要
+{summary}
+
+## 完整分析
+{full_analysis}
+
+## 关键洞察
+{chr(10).join([f'- {insight}' for insight in insights])}
+
+## 要求的输出格式（纯文本，约400字）：
+
+请按以下结构生成邮件深度分析：
+
+1. **邮件内容核心要点**（100字）
+   - 邮件主要内容概述
+   - 最重要信息的提炼
+   - 对读者的价值
+
+2. **涉及的公司和投资方**（80字）
+   - 重要公司背景介绍
+   - 投资方特点分析
+   - 产业链位置分析
+
+3. **交易亮点分析**（120字）
+   - 交易亮点提炼
+   - 投资逻辑解读
+   - 行业意义分析
+
+4. **市场影响评估**（100字）
+   - 对行业的影响
+   - 对投资风向的指示
+   - 后续关注要点
+
+请基于已有分析结果进行深化和拓展，使用专业的VC/PE行业术语，用中文撰写所有内容。"""
+
+        messages = [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+
+        return messages
