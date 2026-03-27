@@ -8,8 +8,11 @@ from typing import Optional, Tuple
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches, Mm, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml.ns import qn
+from docx.oxml.ns import qn, nsdecls
 from docx.oxml.shared import OxmlElement
+from docx.oxml import parse_xml
+from docx.oxml.shape import CT_Picture
+from docx.oxml.xmlchemy import BaseOxmlElement, OneAndOnlyOne
 import config
 
 logger = logging.getLogger(__name__)
@@ -379,7 +382,10 @@ class BackgroundTemplateManager:
 
     def apply_to_word_document(self, doc: Document, opacity: float = None) -> bool:
         """
-        Apply cat background to Word document with transparency support
+        Apply cat background to Word document header (behind text, no layout impact)
+
+        This method places the background image in the document header as a floating
+        image using the CT_Anchor class method, ensuring it doesn't affect body content layout.
 
         Args:
             doc: Word document to apply background to
@@ -410,65 +416,154 @@ class BackgroundTemplateManager:
 
             background_image = self._transparent_image_cache[cache_key]
 
-            # Add background image to document
-            # Note: python-docx doesn't support direct background images
-            # We need to add it as a watermark-like header image
-
+            # Apply to all sections (for multi-page documents)
             for section in doc.sections:
-                # Get the header
+                # Clear any existing header content
                 header = section.header
-
-                # Clear existing header paragraphs
                 for para in header.paragraphs:
-                    para.clear()
+                    para._element.getparent().remove(para._element)
 
-                # Add background image to header
-                # Calculate position to center the image
-                page_width = section.page_width
-                page_height = section.page_height
-
-                # Add paragraph for image
+                # Create new paragraph for background
                 p = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
 
-                # Import and add image
-                from io import BytesIO
+                # Add a run to hold the drawing
                 run = p.add_run()
+                from io import BytesIO
                 img_stream = BytesIO(background_image)
 
-                # Calculate aspect ratios to prevent distortion
+                # Get page dimensions
+                page_width_twips = section.page_width
+                page_height_twips = section.page_height
+                page_width_inches = page_width_twips / 914400
+                page_height_inches = page_height_twips / 914400
+
+                # Calculate aspect ratio
                 img_aspect = self._background_width / self._background_height
-                page_aspect = page_width / page_height
 
-                # Fit by height (image is taller than page), preserve aspect ratio
-                img_height_inches = page_height / 914400
-                img_width_inches = img_height_inches * img_aspect
+                # Fit by height to preserve aspect ratio
+                img_height_inches = page_height_inches
+                img_width_inches = page_height_inches * img_aspect
 
-                # Add image with preserved aspect ratio
-                run.add_picture(
+                # Calculate horizontal offset to center (in EMUs)
+                x_offset_emus = int((page_width_inches - img_width_inches) / 2 * 914400)
+                y_offset_emus = 0  # Top of page
+
+                # Create floating anchor using new_pic_anchor function
+                anchor = new_pic_anchor(
+                    run.part,
                     img_stream,
                     width=Inches(img_width_inches),
-                    height=Inches(img_height_inches)
+                    height=Inches(img_height_inches),
+                    pos_x=x_offset_emus,
+                    pos_y=y_offset_emus
                 )
 
-                # Set alignment
-                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                # Add anchor to the run's drawing element
+                run._r.add_drawing(anchor)
 
-                # Set image to be behind text (z-index)
-                # This requires manipulating the XML directly
-                for rel in header.part.rels.values():
-                    if "image" in rel.target_ref:
-                        # Get the drawing element
-                        drawing = p._element.xpath('.//w:drawing')
-                        if drawing:
-                            # Set behind text
-                            drawing[0].set(qn('w:behindDoc'), '1')
+                # Set header paragraph to not take space
+                pPr = OxmlElement('w:pPr')
+                spacing = OxmlElement('w:spacing')
+                spacing.set(qn('w:before'), '0')
+                spacing.set(qn('w:after'), '0')
+                spacing.set(qn('w:line'), '1')
+                pPr.append(spacing)
+                p._element.insert(0, pPr)
 
-            logger.info(f"Background image applied to Word document (opacity: {opacity:.0%})")
+            logger.info(f"Background image applied to header (opacity: {opacity:.0%})")
             return True
 
         except Exception as e:
             logger.error(f"Failed to apply background to Word document: {e}")
+            import traceback
+            traceback.print_exc()
             return False
+
+
+# CT_Anchor class for floating picture support
+# Based on: https://developer.volcengine.com/articles/7383034922560618506
+class CT_Anchor(BaseOxmlElement):
+    """
+    ``<w:anchor>`` element, container for a floating image.
+    """
+    extent = OneAndOnlyOne('wp:extent')
+    docPr = OneAndOnlyOne('wp:docPr')
+    graphic = OneAndOnlyOne('a:graphic')
+
+    @classmethod
+    def new(cls, cx, cy, shape_id, pic, pos_x, pos_y):
+        """
+        Return a new ``<wp:anchor>`` element populated with the values passed
+        as parameters.
+        """
+        anchor = parse_xml(cls._anchor_xml(pos_x, pos_y))
+        anchor.extent.cx = cx
+        anchor.extent.cy = cy
+        anchor.docPr.id = shape_id
+        anchor.docPr.name = 'Picture %d' % shape_id
+        anchor.graphic.graphicData.uri = (
+            'http://schemas.openxmlformats.org/drawingml/2006/picture'
+        )
+        anchor.graphic.graphicData._insert_pic(pic)
+        return anchor
+
+    @classmethod
+    def new_pic_anchor(cls, shape_id, rId, filename, cx, cy, pos_x, pos_y):
+        """
+        Return a new `wp:anchor` element containing the `pic:pic` element
+        specified by the argument values.
+        """
+        pic_id = 0  # Word doesn't seem to use this, but does not omit it
+        pic = CT_Picture.new(pic_id, filename, rId, cx, cy)
+        anchor = cls.new(cx, cy, shape_id, pic, pos_x, pos_y)
+        anchor.graphic.graphicData._insert_pic(pic)
+        return anchor
+
+    @classmethod
+    def _anchor_xml(cls, pos_x, pos_y):
+        return (
+            '<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="0" \n'
+            '           behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1" \n'
+            '           %s>\n'
+            '  <wp:simplePos x="0" y="0"/>\n'
+            '  <wp:positionH relativeFrom="page">\n'
+            '    <wp:posOffset>%d</wp:posOffset>\n'
+            '  </wp:positionH>\n'
+            '  <wp:positionV relativeFrom="page">\n'
+            '    <wp:posOffset>%d</wp:posOffset>\n'
+            '  </wp:positionV>\n'
+            '  <wp:extent cx="914400" cy="914400"/>\n'
+            '  <wp:wrapNone/>\n'
+            '  <wp:docPr id="666" name="unnamed"/>\n'
+            '  <wp:cNvGraphicFramePr>\n'
+            '    <a:graphicFrameLocks noChangeAspect="1"/>\n'
+            '  </wp:cNvGraphicFramePr>\n'
+            '  <a:graphic>\n'
+            '    <a:graphicData uri="URI not set"/>\n'
+            '  </a:graphic>\n'
+            '</wp:anchor>' % (nsdecls('wp', 'a', 'pic', 'r'), int(pos_x), int(pos_y))
+        )
+
+
+# Register CT_Anchor for wp:anchor elements
+try:
+    from docx.oxml import register_element_cls
+    register_element_cls('wp:anchor', CT_Anchor)
+except Exception:
+    # Already registered or registration not available
+    pass
+
+
+def new_pic_anchor(part, image_descriptor, width, height, pos_x, pos_y):
+    """Return a newly-created `wp:anchor` element.
+
+    The element contains the image specified by *image_descriptor* and is scaled
+    based on the values of *width* and *height*.
+    """
+    rId, image = part.get_or_add_image(image_descriptor)
+    cx, cy = image.scaled_dimensions(width, height)
+    shape_id, filename = part.next_id, image.filename
+    return CT_Anchor.new_pic_anchor(shape_id, rId, filename, cx, cy, pos_x, pos_y)
 
 
 class PDFStyler:
