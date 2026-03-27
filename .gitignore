@@ -1,7 +1,8 @@
-# 大文件和构建产物
+# Build artifacts
 *.exe
 *.zip
 *.dmg
+*.spec
 dist/
 build/
 程序打包/
@@ -10,20 +11,34 @@ build/
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
 .venv/
 .ENV
 
-# 数据和日志
+# Node.js
+mcp-mail-master/node_modules/
+mcp-mail-master/.mcp-mail.lock
+
+# Data and logs
 数据储存/
+供人阅读使用/
+项目代码/
 data/*.json
 data/*.png
 data/temp_charts/
+data/downloads/*
+data/logs/*
+!data/downloads/.gitkeep
+!data/logs/.gitkeep
 
 # IDE
 .vscode/
 .idea/
 *.swp
 
-# 系统文件
+# Lock files
+=5.2.0
+
+# System files
 .DS_Store
 Thumbs.db
