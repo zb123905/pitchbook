@@ -18,6 +18,7 @@ from report_content_extractor import ReportContentExtractor
 try:
     from llm.deepseek_client import DeepSeekClient, APIConfig
     from llm.response_parser import LLMResponseParser
+    from llm.quality_validator import LLMQualityValidator
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
@@ -59,6 +60,7 @@ class VCPEContentAnalyzer:
         self.use_llm = use_llm if use_llm is not None else config.ENABLE_LLM_ANALYSIS
         self.llm_client = None
         self.llm_parser = LLMResponseParser() if LLM_AVAILABLE else None
+        self.quality_validator = LLMQualityValidator() if LLM_AVAILABLE else None
 
         # Initialize LLM client if enabled
         if self.use_llm and LLM_AVAILABLE:
@@ -176,6 +178,20 @@ class VCPEContentAnalyzer:
                         )
 
                         if llm_result['success']:
+                            # Quality validation
+                            if self.quality_validator:
+                                is_valid, issues = self.quality_validator.validate_analysis_quality(llm_result['data'])
+
+                                if not is_valid:
+                                    logger.warning(f"[LLM Quality] Issues detected for email {idx}: {issues}")
+
+                                # Log quality metrics
+                                self.quality_validator.log_quality_metrics(llm_result['data'], f"email_{idx}")
+
+                                # Calculate and log quality score
+                                quality_score = self.quality_validator.get_quality_score(llm_result['data'])
+                                logger.info(f"[LLM Quality] Score for email {idx}: {quality_score:.2f}/1.0")
+
                             # Merge LLM results with base analysis
                             analysis = self.llm_parser.merge_with_base_analysis(llm_result, analysis)
                             logger.debug(f"✓ LLM analysis complete for email {idx}")

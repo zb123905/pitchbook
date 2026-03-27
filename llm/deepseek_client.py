@@ -22,8 +22,11 @@ class APIConfig:
     timeout: int = 30
     max_retries: int = 3
     retry_delay_base: float = 2.0  # Base for exponential backoff
-    temperature: float = 0.3
-    max_tokens: int = 2000
+    temperature: float = 0.2  # Lower temperature for more focused output
+    max_tokens: int = 3000  # Increased for more detailed analysis
+    top_p: float = 0.9  # Nucleus sampling parameter
+    frequency_penalty: float = 0.1  # Reduce repetition
+    presence_penalty: float = 0.0  # Encourage new topics
 
     @classmethod
     def from_env(cls) -> 'APIConfig':
@@ -38,8 +41,11 @@ class APIConfig:
             model=os.getenv('DEEPSEEK_MODEL', 'deepseek-chat'),
             timeout=int(os.getenv('DEEPSEEK_TIMEOUT', '30')),
             max_retries=int(os.getenv('DEEPSEEK_MAX_RETRIES', '3')),
-            temperature=float(os.getenv('DEEPSEEK_TEMPERATURE', '0.3')),
-            max_tokens=int(os.getenv('DEEPSEEK_MAX_TOKENS', '2000'))
+            temperature=float(os.getenv('DEEPSEEK_TEMPERATURE', '0.2')),
+            max_tokens=int(os.getenv('DEEPSEEK_MAX_TOKENS', '3000')),
+            top_p=float(os.getenv('DEEPSEEK_TOP_P', '0.9')),
+            frequency_penalty=float(os.getenv('DEEPSEEK_FREQUENCY_PENALTY', '0.1')),
+            presence_penalty=float(os.getenv('DEEPSEEK_PRESENCE_PENALTY', '0.0'))
         )
 
     def validate(self) -> bool:
@@ -123,7 +129,10 @@ class DeepSeekClient:
             'model': self.config.model,
             'messages': messages,
             'temperature': temperature,
-            'max_tokens': max_tokens
+            'max_tokens': max_tokens,
+            'top_p': self.config.top_p,
+            'frequency_penalty': self.config.frequency_penalty,
+            'presence_penalty': self.config.presence_penalty
         }
 
         # Add response format if specified
@@ -247,6 +256,11 @@ class DeepSeekClient:
         prompt_templates = VCPEPromptTemplates()
         messages = prompt_templates.get_analysis_prompt(content, analysis_type, metadata)
 
+        # Debug logging
+        logger.info(f"[LLM] Analyzing content (type={analysis_type}, length={len(content)})")
+        logger.debug(f"[LLM] Input preview: {content[:200]}...")
+        logger.debug(f"[LLM] API params: temp={self.config.temperature}, max_tokens={self.config.max_tokens}, top_p={self.config.top_p}")
+
         # Request JSON response
         result = self.chat_completion(
             messages=messages,
@@ -264,6 +278,10 @@ class DeepSeekClient:
         try:
             parsed_data = json.loads(result['content'])
 
+            # Debug logging for successful analysis
+            logger.info(f"[LLM] Analysis completed (tokens={result.get('usage', {}).get('total_tokens', 'N/A')})")
+            logger.debug(f"[LLM] Output preview: {str(parsed_data)[:300]}...")
+
             return {
                 'success': True,
                 'data': parsed_data,
@@ -273,6 +291,7 @@ class DeepSeekClient:
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse LLM JSON response: {e}")
+            logger.debug(f"[LLM] Raw response that failed to parse: {result['content'][:200]}...")
 
             return {
                 'success': False,

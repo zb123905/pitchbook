@@ -44,6 +44,11 @@ try:
     print(f"  base_url:                 {config.base_url}")
     print(f"  model:                    {config.model}")
     print(f"  api_key length:           {len(config.api_key) if config.api_key else 0}")
+    print(f"  temperature:              {config.temperature}")
+    print(f"  max_tokens:               {config.max_tokens}")
+    print(f"  top_p:                    {config.top_p}")
+    print(f"  frequency_penalty:        {config.frequency_penalty}")
+    print(f"  presence_penalty:         {config.presence_penalty}")
     print(f"  validate():               {config.validate()}")
 
     if not config.validate():
@@ -116,6 +121,19 @@ try:
     if result['success']:
         print(f"  Tokens used:              {result.get('usage', {}).get('total_tokens', 'N/A')}")
         print(f"  Data keys:               {list(result.get('data', {}).keys())}")
+
+        # Test quality validator
+        from llm.quality_validator import LLMQualityValidator
+        validator = LLMQualityValidator()
+        is_valid, issues = validator.validate_analysis_quality(result.get('data', {}))
+        quality_score = validator.get_quality_score(result.get('data', {}))
+
+        print(f"\n  Quality Validator Results:")
+        print(f"    is_valid():              {is_valid}")
+        if not is_valid:
+            print(f"    issues:                  {issues}")
+        print(f"    quality_score:            {quality_score:.2f}/1.0")
+        validator.log_quality_metrics(result.get('data', {}), "test_1")
     else:
         print(f"  Error:                    {result.get('error', 'Unknown')}")
 except Exception as e:
