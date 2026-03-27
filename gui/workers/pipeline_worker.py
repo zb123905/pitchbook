@@ -426,7 +426,29 @@ class PipelineWorker:
 
         analyzer = VCPEContentAnalyzer(use_llm=self.config.analysis.enable_llm)
 
-        email_analyses = analyzer.analyze_batch(processed_emails)
+        # Analyze emails with progress updates
+        email_count = len(processed_emails)
+        self._log("INFO", f"🔍 开始分析 {email_count} 封邮件...")
+
+        email_analyses = []
+        for idx, email in enumerate(processed_emails, 1):
+            if self._check_stop():
+                raise Exception("用户取消操作")
+
+            subject = email.get('subject', 'Unknown')[:30]
+            self._update_progress(
+                6, "running",
+                f"正在分析邮件 {idx}/{email_count}: {subject}..."
+            )
+
+            try:
+                analysis = analyzer.analyze_email(email)
+                if analysis:
+                    email_analyses.append(analysis)
+                    self._log("DEBUG", f"   ✅ [{idx}/{email_count}] {subject}")
+            except Exception as e:
+                self._log("DEBUG", f"   ❌ [{idx}/{email_count}] 分析失败: {e}")
+
         self._log("INFO", f"✅ 邮件分析: {len(email_analyses)} 封")
 
         report_analyses = []

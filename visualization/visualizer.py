@@ -2,6 +2,10 @@
 Report Visualizer
 Creates all visualization charts for VC/PE reports
 """
+# Use non-interactive backend to prevent GUI blocking
+import matplotlib
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd

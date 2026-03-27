@@ -9,10 +9,15 @@ import logging
 from datetime import datetime
 from collections import Counter
 from docx import Document
-from docx.shared import Pt, RGBColor, Inches, Mm
+from docx.shared import Pt, RGBColor, Inches, Mm, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.shared import OxmlElement
 import config
+from styling_utils import (
+    WordStyler,
+    BackgroundTemplateManager,
+    apply_professional_styling_to_word
+)
 
 # Configure logging
 logging.basicConfig(
@@ -26,25 +31,88 @@ logger = logging.getLogger(__name__)
 VISUALIZATION_AVAILABLE = True
 PDF_AVAILABLE = True
 
+# LLM client (initialized lazily)
+_llm_client = None
+
+
+def get_llm_client():
+    """Get or initialize LLM client for report generation"""
+    global _llm_client
+    if _llm_client is None:
+        try:
+            from llm.deepseek_client import get_default_client
+            _llm_client = get_default_client()
+            if _llm_client and _llm_client.is_available():
+                logger.info("✓ LLM client available for report generation")
+            else:
+                logger.warning("LLM client not available, will use fallback mode")
+                _llm_client = False  # Mark as unavailable
+        except Exception as e:
+            logger.warning(f"Failed to initialize LLM client: {e}")
+            _llm_client = False
+    return _llm_client if _llm_client is not False else None
+
 
 class WeeklyReportGenerator:
     """Weekly Market Observation Report Generator (Enhanced with Charts)"""
 
-    def __init__(self, enable_charts: bool = True):
+    def __init__(self, enable_charts: bool = True, use_llm: bool = True, use_template: bool = True):
         """
         Initialize report generator
 
         Args:
             enable_charts: Whether to include visualization charts (Phase 3 feature)
+            use_llm: Whether to use LLM for content generation (default: True)
+            use_template: Whether to use cat background template (default: True)
         """
         self.enable_charts = enable_charts and VISUALIZATION_AVAILABLE
+        self.use_llm = use_llm and config.ENABLE_LLM_ANALYSIS
+        self.use_template = use_template
         self.visualizer = None  # Will be loaded lazily
         self.trend_analyzer = None  # Will be loaded lazily
-        logger.info(f"WeeklyReportGenerator initialized (charts: {self.enable_charts})")
 
-    def generate_weekly_report(self, analyses, output_path=None, market_overview=None):
-        """Generate weekly report (enhanced version)"""
-        logger.info("Starting weekly report generation")
+        # Check LLM availability
+        if self.use_llm:
+            self.llm_client = get_llm_client()
+            if self.llm_client is None:
+                logger.warning("LLM requested but not available, will use fallback mode")
+                self.use_llm = False
+        else:
+            self.llm_client = None
+
+        # Initialize background template manager
+        if self.use_template:
+            self.bg_manager = BackgroundTemplateManager()
+
+        logger.info(f"WeeklyReportGenerator initialized (charts: {self.enable_charts}, llm: {self.use_llm}, template: {self.use_template})")
+        logger.info("Professional formatting enabled: Microsoft YaHei fonts, professional colors, 1.5x line spacing")
+
+    def generate_weekly_report(self, analyses, output_path=None, market_overview=None, use_llm=True, use_template=None):
+        """
+        Generate weekly report (enhanced version)
+
+        Args:
+            analyses: List of analysis results
+            output_path: Optional output file path
+            market_overview: Optional market overview data
+            use_llm: Whether to use LLM for content generation (default: True)
+            use_template: Whether to use cat background template (default: from __init__)
+        """
+        # Update LLM mode
+        self.use_llm = use_llm and config.ENABLE_LLM_ANALYSIS
+
+        # Update template mode if explicitly provided
+        if use_template is not None:
+            self.use_template = use_template
+            if self.use_template:
+                self.bg_manager = BackgroundTemplateManager()
+        if self.use_llm:
+            self.llm_client = get_llm_client()
+            if self.llm_client is None:
+                logger.warning("LLM requested but not available, will use fallback mode")
+                self.use_llm = False
+
+        logger.info(f"Starting weekly report generation (LLM: {self.use_llm})")
 
         # 添加空列表检查
         if not analyses:
@@ -52,26 +120,39 @@ class WeeklyReportGenerator:
             analyses = []
 
         try:
-            # 创建Word文档
-            doc = Document()
+            # 创建Word文档 - 使用模板作为基础
+            if self.use_template and os.path.exists(config.CAT_BACKGROUND_TEMPLATE):
+                # Load from template
+                doc = Document(config.CAT_BACKGROUND_TEMPLATE)
+                logger.info("Using cat background template for document")
+            else:
+                # Create new document
+                doc = Document()
 
-            # Set default font
-            doc.styles['Normal'].font.name = 'Arial'
+            # Apply professional styling
+            apply_professional_styling_to_word(doc, use_template=self.use_template)
 
-            # Add title
+            # Set default font to Microsoft YaHei
+            doc.styles['Normal'].font.name = config.FONT_BODY
+            doc.styles['Normal'].font.size = Pt(config.FONT_SIZE_BODY)
+
+            # Add title with professional styling
             title = doc.add_heading('VC/PE 行业每周市场观察报告', level=0)
             title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            WordStyler.set_font(title.runs[0], config.FONT_MAIN_TITLE, config.FONT_SIZE_MAIN_TITLE, bold=True, color=config.COLOR_ACCENT_BLUE)
 
             # Add report overview
-            doc.add_heading('📊 报告概览', level=1)
+            WordStyler.apply_heading_style(doc, '报告概览', level=1, emoji='📊')
+            WordStyler.add_section_divider(doc)
 
             report_date = datetime.now().strftime('%Y年%m月%d日')
             total_items = len(analyses)
             email_analyses = [a for a in analyses if a.get('email_index') or a.get('subject')]
             report_analyses = [a for a in analyses if a.get('file_type') == 'Downloaded Report']
 
-            # Add overview information
+            # Add overview information with styling
             overview = doc.add_paragraph()
+            WordStyler.set_spacing(overview, line_spacing=config.LINE_SPACING)
             overview.add_run('报告日期: ').bold = True
             overview.add_run(f'{report_date}\n')
             overview.add_run('分析项目总数: ').bold = True
@@ -87,28 +168,33 @@ class WeeklyReportGenerator:
                 overview.add_run(f'{market_sentiment}\n')
 
             # Add executive summary
-            doc.add_heading('📝 执行摘要', level=1)
+            WordStyler.apply_heading_style(doc, '执行摘要', level=1, emoji='📝')
+            WordStyler.add_section_divider(doc)
 
             executive_summary = self._generate_executive_summary(analyses, market_overview or {})
             for line in executive_summary.split('\n'):
                 if line.strip():
-                    doc.add_paragraph(line.strip())
+                    WordStyler.apply_body_style(doc, line.strip(), indent=True)
 
             # Add market overview
-            doc.add_heading('🌐 市场概览', level=1)
+            WordStyler.apply_heading_style(doc, '市场概览', level=1, emoji='🌐')
+            WordStyler.add_section_divider(doc)
 
             content_types = [a['content_type'] for a in analyses]
             type_counts = Counter(content_types)
 
-            doc.add_paragraph('内容类型分布:')
+            WordStyler.apply_body_style(doc, '内容类型分布:', bold_prefix='')
+
             for content_type, count in type_counts.most_common():
                 percentage = (count / len(analyses)) * 100
                 p = doc.add_paragraph()
                 p.add_run(f'{content_type}: ').bold = True
                 p.add_run(f'{count} ({percentage:.1f}%)')
+                WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
 
             # Add industry sector analysis
-            doc.add_heading('🏭 行业板块分析', level=1)
+            WordStyler.apply_heading_style(doc, '行业板块分析', level=1, emoji='🏭')
+            WordStyler.add_section_divider(doc)
 
             all_topics = []
             for analysis in analyses:
@@ -117,12 +203,14 @@ class WeeklyReportGenerator:
             if all_topics:
                 topic_counts = Counter(all_topics)
 
-                doc.add_paragraph('热门行业板块:')
+                WordStyler.apply_body_style(doc, '热门行业板块:', bold_prefix='')
+
                 for topic, count in topic_counts.most_common():
                     percentage = (count / len(analyses)) * 100
                     p = doc.add_paragraph()
                     p.add_run(f'{topic}: ').bold = True
                     p.add_run(f'{count} 次提及 ({percentage:.1f}%)')
+                    WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
 
             # Add email analysis section
             if email_analyses:
@@ -133,42 +221,47 @@ class WeeklyReportGenerator:
                 self._add_report_analysis_section(doc, report_analyses)
 
             # Add key trends
-            doc.add_heading('📈 关键趋势和观察', level=1)
+            WordStyler.apply_heading_style(doc, '关键趋势和观察', level=1, emoji='📈')
+            WordStyler.add_section_divider(doc)
 
             key_trends = self._generate_key_trends(analyses, market_overview or {})
             for line in key_trends.split('\n'):
                 if line.strip():
                     if line.strip().startswith('**') and line.strip().endswith('**'):
                         title_text = line.strip().replace('**', '')
-                        doc.add_heading(title_text, level=3)
+                        WordStyler.apply_heading_style(doc, title_text, level=3, emoji='')
                     else:
-                        doc.add_paragraph(line.strip().lstrip())
+                        WordStyler.apply_body_style(doc, line.strip().lstrip())
 
             # Add market recommendations
-            doc.add_heading('💡 市场观察和建议', level=1)
+            WordStyler.apply_heading_style(doc, '市场观察和建议', level=1, emoji='💡')
+            WordStyler.add_section_divider(doc)
 
             recommendations = self._generate_recommendations(analyses)
             for line in recommendations.split('\n'):
                 if line.strip():
                     if line.strip().startswith(('1. ', '2. ', '3. ', '4. ')):
-                        doc.add_heading(line.strip(), level=3)
+                        WordStyler.apply_heading_style(doc, line.strip(), level=3, emoji='')
                     else:
-                        doc.add_paragraph(line.strip().lstrip())
+                        WordStyler.apply_body_style(doc, line.strip().lstrip())
 
             # Add appendix
-            doc.add_heading('📎 附录', level=1)
+            WordStyler.apply_heading_style(doc, '附录', level=1, emoji='📎')
+            WordStyler.add_section_divider(doc)
 
             # Add charts section (Phase 3: Visualization)
             if self.enable_charts:
                 charts_section = self._add_charts_section(doc, analyses, market_overview)
 
-            doc.add_paragraph('数据来源:')
-            doc.add_paragraph('主要数据来源: PitchBook 订阅邮件')
-            doc.add_paragraph(f'处理周期: {datetime.now().strftime("%Y-%m-%d")}')
+            WordStyler.apply_body_style(doc, '数据来源:', bold_prefix='')
+            WordStyler.apply_body_style(doc, '主要数据来源: PitchBook 订阅邮件', bold_prefix='')
+            WordStyler.apply_body_style(doc, f'处理周期: {datetime.now().strftime("%Y-%m-%d")}', bold_prefix='')
 
-            doc.add_paragraph('报告生成信息:')
-            doc.add_paragraph(f'生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
-            doc.add_paragraph('报告版本: v3.0 (Pure MCP)')
+            WordStyler.add_section_divider(doc)
+
+            WordStyler.apply_body_style(doc, '报告生成信息:', bold_prefix='')
+            WordStyler.apply_body_style(doc, f'生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', bold_prefix='')
+            WordStyler.apply_body_style(doc, '报告版本: v4.0 (专业格式 + 猫背景)', bold_prefix='')
 
             # 保存文档
             if output_path is None:
@@ -190,137 +283,211 @@ class WeeklyReportGenerator:
         return self.generate_weekly_report(analyses, None, market_overview)
 
     def _generate_executive_summary(self, analyses, market_overview):
-        """Generate executive summary"""
+        """Generate executive summary (with LLM support)"""
+        # Try to use LLM if enabled
+        if self.use_llm and self.llm_client:
+            try:
+                logger.info("Using LLM to generate executive summary (1/3 LLM tasks)...")
+                result = self.llm_client.generate_executive_summary(analyses, "本周")
+
+                if result['success']:
+                    logger.info("✓ Executive summary generated by LLM")
+                    return result['content']
+                else:
+                    logger.warning(f"LLM generation failed: {result.get('error')}, falling back to template")
+            except Exception as e:
+                logger.warning(f"LLM error: {e}, falling back to template")
+
+        # Fallback to template
+        logger.info("Using template for executive summary")
         summary_lines = []
 
         total_emails = len(analyses)
         market_sentiment = market_overview.get('market_sentiment', 'neutral')
-        sentiment_text = self._sentiment_chinese(market_sentiment)
 
-        summary_lines.append(f"This week analyzed {total_emails} PitchBook industry emails, overall market sentiment is {market_sentiment}.")
+        # Chinese translation of sentiment
+        sentiment_map = {
+            'positive': '积极',
+            'negative': '消极',
+            'neutral': '中性'
+        }
+        sentiment_text = sentiment_map.get(market_sentiment, '中性')
+
+        summary_lines.append(f"本周共分析了 {total_emails} 份PitchBook行业资讯，整体市场情绪为{sentiment_text}。")
 
         # Count top topics
         all_topics = []
         for analysis in analyses:
-            all_topics.extend(analysis['key_topics'])
+            all_topics.extend(analysis.get('key_topics', []))
 
         if all_topics:
             topic_counts = Counter(all_topics)
-            if topic_counts:  # 添加检查
+            if topic_counts:
                 top_topics = topic_counts.most_common(3)
                 topic_text = "、".join([topic[0] for topic in top_topics])
-                summary_lines.append(f"Market hot topics include: {topic_text}.")
+                summary_lines.append(f"市场热门主题包括：{topic_text}。")
 
-        summary_lines.append("Main content reflects current market focus and investment directions.")
+        summary_lines.append("主要内容反映了当前市场关注焦点和投资方向。")
 
         return "\n\n".join(summary_lines)
 
     def _generate_key_trends(self, analyses, market_overview):
-        """Generate key trends content"""
+        """Generate key trends content (with LLM support)"""
+        # Try to use LLM if enabled
+        if self.use_llm and self.llm_client:
+            try:
+                logger.info("Using LLM to generate key trends (2/3 LLM tasks)...")
+                result = self.llm_client.generate_key_trends(analyses, "本周")
+
+                if result['success']:
+                    logger.info("✓ Key trends generated by LLM")
+                    return result['content']
+                else:
+                    logger.warning(f"LLM generation failed: {result.get('error')}, falling back to template")
+            except Exception as e:
+                logger.warning(f"LLM error: {e}, falling back to template")
+
+        # Fallback to template
+        logger.info("Using template for key trends")
         content_lines = []
 
         trends_count = 0
 
         # Trend 1: Market sentiment
         market_sentiment = market_overview.get('market_sentiment', 'neutral')
+
+        sentiment_map = {
+            'positive': '积极',
+            'negative': '消极',
+            'neutral': '中性'
+        }
+
         if market_sentiment != 'neutral':
-            sentiment_text = self._sentiment_chinese(market_sentiment)
+            sentiment_text = sentiment_map.get(market_sentiment, '中性')
             trends_count += 1
-            content_lines.append(f"**{trends_count}. Market sentiment is {market_sentiment}**")
-            content_lines.append(f"   Overall market sentiment this week is {market_sentiment}, investor confidence is {'improving' if market_sentiment == 'positive' else 'cautious' if market_sentiment == 'negative' else 'stable'}.")
+            content_lines.append(f"**{trends_count}. 市场情绪{sentiment_text}**")
+            confidence_desc = {
+                'positive': '投资者信心持续改善',
+                'negative': '投资者保持谨慎态度',
+                'neutral': '市场保持稳定'
+            }
+            content_lines.append(f"   本周整体市场情绪为{sentiment_text}，{confidence_desc.get(market_sentiment, '市场平稳')}。")
 
         # Trend 2: Hot topics
         all_topics = []
         for analysis in analyses:
-            all_topics.extend(analysis['key_topics'])
+            all_topics.extend(analysis.get('key_topics', []))
 
         if all_topics:
             topic_counts = Counter(all_topics)
-            if topic_counts:  # 添加检查
+            if topic_counts:
                 top_topic = topic_counts.most_common(1)[0][0]
                 trends_count += 1
-                content_lines.append(f"\n**{trends_count}. {top_topic} sector remains active**")
-                content_lines.append(f"   {top_topic} is the most watched topic this week, related news and deal activities are frequent.")
+                content_lines.append(f"\n**{trends_count}. {top_topic}板块保持活跃**")
+                content_lines.append(f"   {top_topic}是本周最受关注的主题，相关新闻和交易活动频繁。")
 
         # Trend 3: Content characteristics
-        content_types = [a['content_type'] for a in analyses]
-        if content_types:  # 添加检查
+        content_types = [a.get('content_type', '') for a in analyses]
+        if content_types:
             dominant_type = Counter(content_types).most_common(1)[0][0]
             trends_count += 1
-            content_lines.append(f"\n**{trends_count}. {dominant_type} becomes main news type**")
-            content_lines.append("   " + dominant_type + " dominates this week, reflecting key market focus areas.")
+            content_lines.append(f"\n**{trends_count}. {dominant_type}成为主要新闻类型**")
+            content_lines.append(f"   {dominant_type}在本周占据主导地位，反映了市场关键关注领域。")
 
         # Trend 4: Deal activities
-        deal_count = sum(1 for a in analyses if 'Deal' in a['content_type'])
+        deal_count = sum(1 for a in analyses if 'Deal' in a.get('content_type', ''))
         if deal_count > 0:
             trends_count += 1
-            content_lines.append(f"\n**{trends_count}. Deal activities {'active' if deal_count >= 2 else 'stable'}**")
-            content_lines.append(f"   This week has {deal_count} deal-related news, market deal activity is {'active' if deal_count >= 2 else 'relatively stable'}.")
+            content_lines.append(f"\n**{trends_count}. 交易活动{'活跃' if deal_count >= 2 else '平稳'}**")
+            content_lines.append(f"   本周共有{deal_count}条交易相关新闻，市场交易活动{'活跃' if deal_count >= 2 else '相对平稳'}。")
 
         return "\n".join(content_lines)
 
     def _generate_recommendations(self, analyses):
-        """Generate market recommendations content"""
+        """Generate market recommendations content (with LLM support)"""
+        # Try to use LLM if enabled
+        if self.use_llm and self.llm_client:
+            try:
+                logger.info("Using LLM to generate recommendations (3/3 LLM tasks)...")
+                result = self.llm_client.generate_recommendations(analyses, "本周")
+
+                if result['success']:
+                    logger.info("✓ Recommendations generated by LLM")
+                    return result['content']
+                else:
+                    logger.warning(f"LLM generation failed: {result.get('error')}, falling back to template")
+            except Exception as e:
+                logger.warning(f"LLM error: {e}, falling back to template")
+
+        # Fallback to template
+        logger.info("Using template for recommendations")
         content_lines = []
 
-        content_lines.append("Based on this week's market analysis, the following observations and recommendations are provided:")
+        content_lines.append("基于本周市场分析，提供以下观察和建议：")
 
         # Recommendation 1: Focus on hot sectors
         all_topics = []
         for analysis in analyses:
-            all_topics.extend(analysis['key_topics'])
+            all_topics.extend(analysis.get('key_topics', []))
 
         if all_topics:
             topic_counts = Counter(all_topics)
-            if topic_counts:  # 添加检查
+            if topic_counts:
                 top_topics = [topic[0] for topic in topic_counts.most_common(2)]
-                content_lines.append(f"\n1. **Key Focus Sectors**")
+                content_lines.append(f"\n1. **重点关注领域**")
                 for topic in top_topics:
-                    content_lines.append(f"   - Continuously monitor developments in {topic}")
+                    content_lines.append(f"   - 持续关注{topic}领域的发展动态")
 
         # Recommendation 2: Market strategy
-        deal_count = sum(1 for a in analyses if 'Deal' in a['content_type'])
-        content_lines.append(f"\n2. **Market Strategy Recommendations**")
+        deal_count = sum(1 for a in analyses if 'Deal' in a.get('content_type', ''))
+        content_lines.append(f"\n2. **市场策略建议**")
         if deal_count >= 2:
-            content_lines.append("   - Market deal activity is active, consider increasing investment activities")
-            content_lines.append("   - Focus on quality targets, seize investment opportunities")
+            content_lines.append("   - 市场交易活动活跃，可考虑增加投资活动")
+            content_lines.append("   - 重点关注优质项目，把握投资机会")
         else:
-            content_lines.append("   - Market is relatively stable, suggest prudent investment strategy")
-            content_lines.append("   - Focus on targets with good fundamentals")
+            content_lines.append("   - 市场相对平稳，建议采取稳健投资策略")
+            content_lines.append("   - 重点关注基本面良好的标的")
 
         # Recommendation 3: Risk warning
-        content_lines.append(f"\n3. **Risk Warning**")
-        content_lines.append("   - Pay attention to market volatility risks, implement proper risk control")
-        content_lines.append("   - Monitor policy changes impact on relevant industries")
-        content_lines.append("   - Suggest diversified investment to reduce concentration risk")
+        content_lines.append(f"\n3. **风险提示**")
+        content_lines.append("   - 注意市场波动风险，做好风险控制")
+        content_lines.append("   - 关注政策变化对相关行业的影响")
+        content_lines.append("   - 建议通过多元化投资降低集中度风险")
 
         # Recommendation 4: Continuous monitoring
-        content_lines.append(f"\n4. **Continuous Monitoring**")
-        content_lines.append("   - Establish continuous market monitoring mechanism")
-        content_lines.append("   - Regularly track dynamics of industry leading companies")
-        content_lines.append("   - Focus on development of emerging technologies and business models")
+        content_lines.append(f"\n4. **持续监测**")
+        content_lines.append("   - 建立持续的市场监测机制")
+        content_lines.append("   - 定期跟踪行业龙头企业的动态")
+        content_lines.append("   - 关注新兴技术和商业模式的发展")
 
         return "\n".join(content_lines)
 
     def _sentiment_chinese(self, sentiment):
-        """Convert market sentiment to Chinese (kept for compatibility)"""
+        """Convert market sentiment to Chinese"""
         sentiment_map = {
-            'positive': 'positive',
-            'negative': 'negative',
-            'neutral': 'neutral'
+            'positive': '积极',
+            'negative': '消极',
+            'neutral': '中性'
         }
-        return sentiment_map.get(sentiment, 'neutral')
+        return sentiment_map.get(sentiment, '中性')
 
     def _add_email_analysis_section(self, doc, email_analyses):
-        """Add email analysis section"""
+        """Add email analysis section (with LLM support)"""
         doc.add_page_break()
-        doc.add_heading('📧 邮件内容分析', level=1)
+        WordStyler.apply_heading_style(doc, '邮件内容深度分析', level=1, emoji='📧')
+        WordStyler.add_section_divider(doc)
 
+        total_emails = min(len(email_analyses), 5)
         for idx, analysis in enumerate(email_analyses[:5], 1):  # Limit to 5 emails
-            doc.add_heading(f"{idx}. {analysis.get('subject', 'No Subject')[:80]}", level=2)
+            logger.info(f"Processing email {idx}/{total_emails} for report...")
+            subject = analysis.get('subject', 'No Subject')
+            # Truncate subject if too long
+            display_subject = subject[:80] + '...' if len(subject) > 80 else subject
+            WordStyler.apply_heading_style(doc, f"{idx}. {display_subject}", level=2, emoji='')
 
-            # Email metadata
+            # Email metadata with styling
             p = doc.add_paragraph()
+            WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
             p.add_run('发件人: ').bold = True
             p.add_run(f"{analysis.get('from', 'N/A')}\n")
             p.add_run('日期: ').bold = True
@@ -328,40 +495,117 @@ class WeeklyReportGenerator:
             p.add_run('内容类型: ').bold = True
             p.add_run(f"{analysis.get('content_type', 'N/A')}")
 
-            # Categories
+            # Categories with styling
             if analysis.get('categories'):
                 categories_str = " | ".join(analysis['categories'])
-                doc.add_paragraph(f"🏷️ 分类: {categories_str}")
+                WordStyler.apply_body_style(doc, f"🏷️ 分类: {categories_str}", bold_prefix='')
 
-            # Key topics
+            # Key topics with styling
             if analysis.get('key_topics'):
                 topics_str = " | ".join(analysis['key_topics'])
-                doc.add_paragraph(f"🔑 关键主题: {topics_str}")
+                WordStyler.apply_body_style(doc, f"🔑 关键主题: {topics_str}", bold_prefix='')
+
+            # Try to get LLM deep analysis
+            llm_analysis_added = False
+            if self.use_llm and self.llm_client:
+                try:
+                    logger.info(f"Generating LLM deep analysis for email {idx}/{total_emails}...")
+                    result = self.llm_client.generate_email_analysis(analysis, idx)
+
+                    if result['success']:
+                        logger.info(f"✓ Email {idx} LLM analysis generated")
+                        # Add LLM analysis content
+                        doc.add_paragraph()
+                        p = doc.add_paragraph()
+                        p.add_run('📖 深度分析:').bold = True
+                        WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+
+                        # Split by lines and format
+                        for line in result['content'].split('\n'):
+                            line = line.strip()
+                            if not line:
+                                continue
+                            # Handle numbered sections
+                            if line[0].isdigit() and '.' in line[:3]:
+                                doc.add_heading(line, level=4)
+                            elif line.startswith('- '):
+                                WordStyler.apply_body_style(doc, line, bold_prefix='')
+                            else:
+                                WordStyler.apply_body_style(doc, line, bold_prefix='')
+                        llm_analysis_added = True
+                    else:
+                        logger.warning(f"LLM analysis failed for email {idx}")
+                except Exception as e:
+                    logger.warning(f"LLM error for email {idx}: {e}")
+
+            # Fallback: Show existing LLM analysis fields if available
+            if not llm_analysis_added:
+                # Check for existing LLM fields
+                if analysis.get('llm_analysis_full') or analysis.get('analysis_full'):
+                    doc.add_paragraph()
+                    p = doc.add_paragraph()
+                    p.add_run('📖 深度分析:').bold = True
+                    WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+                    full_analysis = analysis.get('llm_analysis_full') or analysis.get('analysis_full', '')
+                    WordStyler.apply_body_style(doc, full_analysis, bold_prefix='')
+
+                # Show key insights
+                if analysis.get('llm_key_insights') or analysis.get('key_insights'):
+                    doc.add_paragraph()
+                    p = doc.add_paragraph()
+                    p.add_run('💡 关键洞察:').bold = True
+                    WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+                    insights = analysis.get('llm_key_insights') or analysis.get('key_insights', [])
+                    for insight in insights:
+                        WordStyler.apply_body_style(doc, f"  • {insight}", bold_prefix='')
+
+                # Show summary
+                if analysis.get('llm_summary_chinese') or analysis.get('summary_chinese'):
+                    doc.add_paragraph()
+                    p = doc.add_paragraph()
+                    p.add_run('📝 内容摘要:').bold = True
+                    WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+                    summary = analysis.get('llm_summary_chinese') or analysis.get('summary_chinese', '')
+                    WordStyler.apply_body_style(doc, summary, bold_prefix='')
+
+                # Show deals if available
+                if analysis.get('investment_deals'):
+                    doc.add_paragraph()
+                    p = doc.add_paragraph()
+                    p.add_run('💰 相关交易:').bold = True
+                    WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+                    for deal in analysis.get('investment_deals', [])[:3]:
+                        deal_text = f"  • {deal.get('company', '未知公司')} - {deal.get('round', '')} - {deal.get('amount', '金额未知')}"
+                        if deal.get('investors'):
+                            deal_text += f" (投资方: {', '.join(deal['investors'])})"
+                        WordStyler.apply_body_style(doc, deal_text, bold_prefix='')
 
     def _add_report_analysis_section(self, doc, report_analyses):
         """Add report content analysis section (NEW!)"""
         doc.add_page_break()
-        doc.add_heading('📊 报告内容深度分析', level=1)
+        WordStyler.apply_heading_style(doc, '报告内容深度分析', level=1, emoji='📊')
+        WordStyler.add_section_divider(doc)
 
-        doc.add_paragraph(f"本节对下载的 {len(report_analyses)} 份报告进行深度内容分析")
+        WordStyler.apply_body_style(doc, f"本节对下载的 {len(report_analyses)} 份报告进行深度内容分析", bold_prefix='')
 
         for idx, analysis in enumerate(report_analyses, 1):
-            doc.add_heading(f"{idx}. {analysis.get('filename', 'Unknown')}", level=2)
+            WordStyler.apply_heading_style(doc, f"{idx}. {analysis.get('filename', 'Unknown')}", level=2, emoji='')
 
-            # Content type
+            # Content type with styling
             p = doc.add_paragraph()
+            WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
             p.add_run('📌 内容类型: ').bold = True
             p.add_run(f"{analysis.get('content_type', 'N/A')}")
 
-            # Categories
+            # Categories with styling
             if analysis.get('categories'):
                 categories_str = " | ".join(analysis['categories'])
-                doc.add_paragraph(f"🏷️ 分类: {categories_str}")
+                WordStyler.apply_body_style(doc, f"🏷️ 分类: {categories_str}", bold_prefix='')
 
-            # Key topics
+            # Key topics with styling
             if analysis.get('key_topics'):
                 topics_str = " | ".join(analysis['key_topics'])
-                doc.add_paragraph(f"🔑 关键主题: {topics_str}")
+                WordStyler.apply_body_style(doc, f"🔑 关键主题: {topics_str}", bold_prefix='')
 
             # Content summary (first 800 characters)
             if 'full_text' in analysis and analysis['full_text']:
@@ -370,25 +614,30 @@ class WeeklyReportGenerator:
                     summary += "..."
 
                 doc.add_paragraph()
-                doc.add_paragraph().add_run('📝 内容摘要:').bold = True
-                doc.add_paragraph(summary)
+                p = doc.add_paragraph()
+                p.add_run('📝 内容摘要:').bold = True
+                WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+                WordStyler.apply_body_style(doc, summary, bold_prefix='')
 
-            # Metrics data
+            # Metrics data with styling
             if analysis.get('metrics'):
                 metrics = analysis['metrics']
                 doc.add_paragraph()
-                doc.add_paragraph().add_run('📈 统计指标:').bold = True
-                doc.add_paragraph(f"  • 文本长度: {metrics.get('text_length', 0):,} 字符")
-                doc.add_paragraph(f"  • 发现金额: {metrics.get('amounts_found', 0)} 处")
-                doc.add_paragraph(f"  • 发现百分比: {metrics.get('percentages_found', 0)} 处")
+                p = doc.add_paragraph()
+                p.add_run('📈 统计指标:').bold = True
+                WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+
+                WordStyler.apply_body_style(doc, f"  • 文本长度: {metrics.get('text_length', 0):,} 字符", bold_prefix='')
+                WordStyler.apply_body_style(doc, f"  • 发现金额: {metrics.get('amounts_found', 0)} 处", bold_prefix='')
+                WordStyler.apply_body_style(doc, f"  • 发现百分比: {metrics.get('percentages_found', 0)} 处", bold_prefix='')
 
                 # Show sample amounts if available
                 if metrics.get('sample_amounts'):
-                    doc.add_paragraph(f"  • 金额示例: {', '.join(metrics['sample_amounts'][:5])}")
+                    WordStyler.apply_body_style(doc, f"  • 金额示例: {', '.join(metrics['sample_amounts'][:5])}", bold_prefix='')
 
                 # Show sample percentages if available
                 if metrics.get('sample_percentages'):
-                    doc.add_paragraph(f"  • 百分比示例: {', '.join(metrics['sample_percentages'][:5])}")
+                    WordStyler.apply_body_style(doc, f"  • 百分比示例: {', '.join(metrics['sample_percentages'][:5])}", bold_prefix='')
 
     def _add_charts_section(self, doc, analyses, market_overview):
         """
@@ -412,11 +661,14 @@ class WeeklyReportGenerator:
 
         try:
             doc.add_page_break()
-            doc.add_heading('📊 数据可视化分析 (Data Visualization)', level=1)
+            WordStyler.apply_heading_style(doc, '数据可视化分析 (Data Visualization)', level=1, emoji='📊')
+            WordStyler.add_section_divider(doc)
 
-            doc.add_paragraph(
+            WordStyler.apply_body_style(
+                doc,
                 '本节包含基于分析数据生成的可视化图表，'
-                '提供投资趋势、行业分布、投资机构活跃度等关键指标的直观展示。'
+                '提供投资趋势、行业分布、投资机构活跃度等关键指标的直观展示。',
+                bold_prefix=''
             )
 
             # Generate all charts
@@ -436,43 +688,43 @@ class WeeklyReportGenerator:
 
             # Industry Distribution
             if charts.get('industry_distribution'):
-                doc.add_heading('行业分布 (Industry Distribution)', level=2)
+                WordStyler.apply_heading_style(doc, '行业分布 (Industry Distribution)', level=2, emoji='')
                 self._add_chart_to_doc(doc, charts['industry_distribution'], '行业板块分布饼图')
                 chart_count += 1
 
             # Deal Stages
             if charts.get('deal_stage_pie'):
-                doc.add_heading('融资轮次分布 (Deal Stage Distribution)', level=2)
+                WordStyler.apply_heading_style(doc, '融资轮次分布 (Deal Stage Distribution)', level=2, emoji='')
                 self._add_chart_to_doc(doc, charts['deal_stage_pie'], '各融资轮次占比')
                 chart_count += 1
 
             # Top Investors
             if charts.get('top_investors'):
-                doc.add_heading('活跃投资机构 (Top Investors)', level=2)
+                WordStyler.apply_heading_style(doc, '活跃投资机构 (Top Investors)', level=2, emoji='')
                 self._add_chart_to_doc(doc, charts['top_investors'], '交易数量排名')
                 chart_count += 1
 
             # Investment Timeline
             if charts.get('investment_timeline'):
-                doc.add_heading('投资趋势 (Investment Trends)', level=2)
+                WordStyler.apply_heading_style(doc, '投资趋势 (Investment Trends)', level=2, emoji='')
                 self._add_chart_to_doc(doc, charts['investment_timeline'], '投资金额与交易数量时间线')
                 chart_count += 1
 
             # Stage Amounts
             if charts.get('stage_bar'):
-                doc.add_heading('各轮次投资额 (Investment by Stage)', level=2)
+                WordStyler.apply_heading_style(doc, '各轮次投资额 (Investment by Stage)', level=2, emoji='')
                 self._add_chart_to_doc(doc, charts['stage_bar'], '各轮次投资总额对比')
                 chart_count += 1
 
             # Hot Sectors
             if charts.get('hot_sectors_bar'):
-                doc.add_heading('热门投资领域 (Hot Investment Sectors)', level=2)
+                WordStyler.apply_heading_style(doc, '热门投资领域 (Hot Investment Sectors)', level=2, emoji='')
                 self._add_chart_to_doc(doc, charts['hot_sectors_bar'], '热门领域投资金额排名')
                 chart_count += 1
 
             # Investment Network
             if charts.get('investment_network'):
-                doc.add_heading('投资关系网络 (Investment Network)', level=2)
+                WordStyler.apply_heading_style(doc, '投资关系网络 (Investment Network)', level=2, emoji='')
                 self._add_chart_to_doc(doc, charts['investment_network'], '投资机构与被投企业关系网络图')
                 chart_count += 1
 
@@ -509,8 +761,7 @@ class WeeklyReportGenerator:
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run(f'图: {caption}')
-                run.font.size = Pt(9)
-                run.font.color.rgb = RGBColor(128, 128, 128)
+                WordStyler.set_font(run, config.FONT_DATA, config.FONT_SIZE_DATA, color=config.COLOR_TEXT_DARK)
 
         except Exception as e:
             logger.error(f"Failed to add chart to document: {e}")
