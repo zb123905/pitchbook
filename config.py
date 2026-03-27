@@ -9,10 +9,10 @@ PROJECT_ROOT = get_app_dir()
 
 # 数据存储路径（使用用户数据目录，跨机器兼容）
 DATA_DIR = get_user_data_path('data')
-EMAILS_DIR = os.path.join(DATA_DIR, 'emails')      # 存储原始邮件文件
-REPORTS_DIR = os.path.join(DATA_DIR, 'reports')     # 存储分析报告
+EMAILS_DIR = get_user_data_path('数据储存/原始邮件')      # 存储原始邮件文件
+REPORTS_DIR = get_user_data_path('数据储存/JSON报告')     # 存储分析报告
 DOWNLOADS_DIR = os.path.join(DATA_DIR, 'downloads') # 存储下载的报告文件
-LOGS_DIR = os.path.join(DATA_DIR, 'logs')        # 存储日志文件
+LOGS_DIR = get_user_data_path('数据储存/logs')        # 存储日志文件
 
 # 用户指定输出路径 - 统一到两个主目录
 # 供人阅读使用的文件（使用用户文档目录，跨机器兼容）
@@ -40,7 +40,7 @@ CHART_TEMP_DIR = os.path.join(DATA_DIR, 'temp_charts')
 # Web 爬虫存储路径
 SCRAPER_MARKDOWN_DIR = AI_ANALYSIS_DIR  # Markdown 输出（用于AI分析）
 SCRAPER_PDF_DIR = HUMAN_READABLE_PDF_DIR  # PDF 输出（供人工阅读）
-SCRAPER_CACHE_DIR = os.path.join(DATA_DIR, 'scraper_cache')  # 爬虫缓存
+SCRAPER_CACHE_DIR = get_user_data_path('数据储存/爬虫缓存')  # 爬虫缓存
 SCRAPER_LOGS_DIR = os.path.join(LOGS_DIR, 'scraper')   # 爬虫日志
 
 # 创建必要的目录
