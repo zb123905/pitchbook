@@ -112,8 +112,8 @@ class WordStyler:
 
         p = doc.add_paragraph()
         p_format = p.paragraph_format
-        p_format.space_before = Pt(12)
-        p_format.space_after = Pt(12)
+        p_format.space_before = Pt(3)   # Reduced from 12pt to minimize whitespace
+        p_format.space_after = Pt(3)    # Reduced from 12pt to minimize whitespace
 
         # Add bottom border to paragraph
         pPr = p._element.get_or_add_pPr()
@@ -169,12 +169,59 @@ class WordStyler:
                 color=config.COLOR_TEXT_DARK
             )
 
-        # Set spacing
+        # Set spacing (compact to reduce whitespace)
         WordStyler.set_spacing(
             heading,
-            line_spacing=config.LINE_SPACING,
-            before=Pt(12),
-            after=Pt(6)
+            line_spacing=1.0,      # Changed from config.LINE_SPACING (1.2) to 1.0
+            before=Pt(6),          # Reduced from 12pt to 6pt
+            after=Pt(3)            # Reduced from 6pt to 3pt
+        )
+
+    @staticmethod
+    def apply_compact_heading_style(doc, text: str, level: int, emoji: str = '') -> None:
+        """
+        Apply compact heading style for article sections (less spacing)
+
+        Args:
+            doc: Document object
+            text: Heading text (without emoji)
+            level: Heading level (1, 2, or 3)
+            emoji: Optional emoji prefix
+        """
+        heading = doc.add_heading(f'{emoji} {text}' if emoji else text, level=level)
+
+        # Apply style based on level
+        if level == 1:
+            WordStyler.set_font(
+                heading.runs[0],
+                config.FONT_HEADING1,
+                config.FONT_SIZE_HEADING1,
+                bold=True,
+                color=config.COLOR_ACCENT_BLUE
+            )
+        elif level == 2:
+            WordStyler.set_font(
+                heading.runs[0],
+                config.FONT_HEADING2,
+                config.FONT_SIZE_HEADING2,
+                bold=True,
+                color=config.COLOR_TEXT_DARK
+            )
+        else:  # level 3
+            WordStyler.set_font(
+                heading.runs[0],
+                config.FONT_BODY,
+                config.FONT_SIZE_BODY,
+                bold=True,
+                color=config.COLOR_TEXT_DARK
+            )
+
+        # Compact spacing for article content
+        WordStyler.set_spacing(
+            heading,
+            line_spacing=1.0,
+            before=Pt(4),
+            after=Pt(2)
         )
 
     @staticmethod
@@ -200,12 +247,12 @@ class WordStyler:
             p.add_run(text)
             WordStyler.set_font(p.runs[0], config.FONT_BODY, config.FONT_SIZE_BODY, bold=False)
 
-        # Set spacing
+        # Set spacing (compact to reduce whitespace)
         WordStyler.set_spacing(
             p,
-            line_spacing=config.LINE_SPACING,
-            before=Pt(3),
-            after=Pt(3)
+            line_spacing=1.0,      # Changed from config.LINE_SPACING (1.2) to 1.0
+            before=Pt(0),          # Reduced from 3pt to 0
+            after=Pt(0)            # Reduced from 3pt to 0
         )
 
         # Apply indent if requested
@@ -689,7 +736,7 @@ class PDFStyler:
 
 
 # Convenience functions
-def apply_professional_styling_to_word(doc: Document, use_template: bool = True,
+def apply_professional_styling_to_word(doc: Document, use_template: bool = False,
                                         add_content_overlay: bool = True) -> Document:
     """
     Apply all professional styling to a Word document
@@ -712,10 +759,11 @@ def apply_professional_styling_to_word(doc: Document, use_template: bool = True,
     )
 
     # Apply background template if requested
-    if use_template:
-        manager = BackgroundTemplateManager()
-        # Apply with configured transparency
-        manager.apply_to_word_document(doc, opacity=config.BACKGROUND_TRANSPARENCY_WORD)
+    # Background functionality disabled - use_template defaults to False
+    # if use_template:
+    #     manager = BackgroundTemplateManager()
+    #     # Apply with configured transparency
+    #     manager.apply_to_word_document(doc, opacity=config.BACKGROUND_TRANSPARENCY_WORD)
 
     # Note: Content overlay is applied during paragraph creation in report_generator.py
     # This is because Word paragraph shading needs to be applied per-paragraph

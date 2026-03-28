@@ -15,10 +15,12 @@ try:
     import config
     MAX_TOKENS_DEFAULT = getattr(config, 'LLM_MAX_TOKENS', 3000)
     MAX_TOKENS_LONG = getattr(config, 'LLM_MAX_TOKENS_LONG', 6000)
+    MAX_TOKENS_EXECUTIVE = getattr(config, 'LLM_MAX_TOKENS_EXECUTIVE', 4000)  # For 2000 word executive summary
     MAX_TOKENS_ARTICLE = getattr(config, 'LLM_MAX_TOKENS_ARTICLE', 8000)  # For full 3000+ word articles
 except ImportError:
     MAX_TOKENS_DEFAULT = 3000
     MAX_TOKENS_LONG = 6000
+    MAX_TOKENS_EXECUTIVE = 4000
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,7 @@ class APIConfig:
     api_key: str = ""
     model: str = "deepseek-chat"
     timeout: int = 30
+    timeout_long: int = 180  # Longer timeout for article generation (3 minutes)
     max_retries: int = 3
     retry_delay_base: float = 2.0  # Base for exponential backoff
     temperature: float = 0.2  # Lower temperature for more focused output
@@ -52,6 +55,7 @@ class APIConfig:
             api_key=os.getenv('DEEPSEEK_API_KEY', ''),
             model=os.getenv('DEEPSEEK_MODEL', 'deepseek-chat'),
             timeout=int(os.getenv('DEEPSEEK_TIMEOUT', '30')),
+            timeout_long=int(os.getenv('DEEPSEEK_TIMEOUT_LONG', '180')),
             max_retries=int(os.getenv('DEEPSEEK_MAX_RETRIES', '3')),
             temperature=float(os.getenv('DEEPSEEK_TEMPERATURE', '0.2')),
             max_tokens=int(os.getenv('DEEPSEEK_MAX_TOKENS', '3000')),
@@ -345,7 +349,7 @@ class DeepSeekClient:
         time_range: str = "本周"
     ) -> Dict[str, Any]:
         """
-        Generate executive summary using LLM
+        Generate executive summary using LLM (2000 words)
 
         Args:
             analyses: List of analysis results
@@ -361,16 +365,38 @@ class DeepSeekClient:
 
         logger.info(f"[LLM] Generating executive summary for {len(analyses)} analyses")
 
+        # Increase max_tokens to ensure 2000 word output (Chinese ~1.5 tokens/word)
         result = self.chat_completion(
             messages=messages,
-            max_tokens=self.config.max_tokens_long
+            max_tokens=MAX_TOKENS_EXECUTIVE  # Use config value (default: 4000)
         )
 
         if result['success']:
+            content = result['content']
+
+            # Import word count utility
+            try:
+                from .utils import count_chinese_words, count_total_words
+                word_count = count_chinese_words(content)
+                total_stats = count_total_words(content)
+                logger.info(f"[LLM] Executive summary generated: {word_count} Chinese words, {total_stats['total_chars']} chars")
+            except ImportError:
+                # Fallback to simple character count if utils not available
+                word_count = len(content)
+                logger.info(f"[LLM] Executive summary generated: {word_count} chars (utils not available)")
+
             logger.info(f"[LLM] Executive summary generated ({result.get('usage', {}).get('total_tokens', 'N/A')} tokens)")
+
+            # Validate word count meets target
+            if word_count < 1800:
+                logger.warning(f"[LLM] Executive summary is shorter than target: {word_count} words (target: 2000)")
+            elif word_count >= 2000:
+                logger.info(f"[LLM] Executive summary meets 2000 word requirement: {word_count} words")
+
             return {
                 'success': True,
-                'content': result['content'],
+                'content': content,
+                'word_count': word_count,
                 'usage': result.get('usage', {})
             }
         else:
@@ -523,17 +549,92 @@ class DeepSeekClient:
             包含成功状态、文章内容和使用量的字典
         """
         from .prompts import VCPEPromptTemplates
+        from openai import OpenAI
 
         prompt_templates = VCPEPromptTemplates()
         messages = prompt_templates.get_full_article_prompt(weekly_data, all_analyses)
 
         logger.info(f"[LLM] Generating full article ({len(all_analyses)} emails, 3000+ words)")
 
-        # 使用更长的 token 限制支持长文章生成
-        result = self.chat_completion(
-            messages=messages,
-            max_tokens=self.config.max_tokens_long + 2000  # 超长文章需要更多 tokens
+        # Create a temporary client with longer timeout for article generation
+        long_timeout_client = OpenAI(
+            api_key=self.config.api_key,
+            base_url=self.config.base_url,
+            timeout=self.config.timeout_long  # Use longer timeout (180 seconds)
         )
+
+        # Prepare request parameters
+        request_params = {
+            'model': self.config.model,
+            'messages': messages,
+            'temperature': self.config.temperature,
+            'max_tokens': self.config.max_tokens_long + 2000,
+            'top_p': self.config.top_p,
+            'frequency_penalty': self.config.frequency_penalty,
+            'presence_penalty': self.config.presence_penalty
+        }
+
+        # Retry logic with exponential backoff
+        last_error = None
+        for attempt in range(self.config.max_retries):
+            try:
+                logger.debug(f"API request for full article (attempt {attempt + 1}/{self.config.max_retries})")
+
+                response = long_timeout_client.chat.completions.create(**request_params)
+                content = response.choices[0].message.content
+
+                # Parse usage info
+                usage = {
+                    'prompt_tokens': response.usage.prompt_tokens if response.usage else 0,
+                    'completion_tokens': response.usage.completion_tokens if response.usage else 0,
+                    'total_tokens': response.usage.total_tokens if response.usage else 0,
+                }
+
+                logger.info(f"[LLM] Full article API success: {usage['total_tokens']} tokens")
+
+                word_count = len(content)
+
+                # 验证字数是否达标
+                if word_count < 2000:
+                    logger.warning(f"[LLM] Article may be too short: {word_count} chars (target: 3000+)")
+
+                return {
+                    'success': True,
+                    'content': content,
+                    'word_count': word_count,
+                    'usage': usage
+                }
+
+            except Exception as e:
+                last_error = e
+                error_type = type(e).__name__
+
+                # Don't retry on certain errors
+                if error_type in ['AuthenticationError', 'PermissionError']:
+                    logger.error(f"API authentication error: {e}")
+                    return {
+                        'success': False,
+                        'error': str(e),
+                        'error_type': error_type,
+                        'content': None
+                    }
+
+                # Calculate backoff delay
+                delay = self.config.retry_delay_base * (2 ** attempt)
+
+                if attempt < self.config.max_retries - 1:
+                    logger.warning(f"API request for full article failed (attempt {attempt + 1}): {e}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                else:
+                    logger.error(f"API request for full article failed after {self.config.max_retries} attempts: {e}")
+
+        # All retries exhausted
+        return {
+            'success': False,
+            'error': str(last_error),
+            'error_type': type(last_error).__name__,
+            'content': None
+        }
 
         if result['success']:
             content = result['content']

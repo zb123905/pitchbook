@@ -79,6 +79,7 @@ LLM_TIMEOUT = int(os.getenv('DEEPSEEK_TIMEOUT', '30'))  # 超时时间（秒）
 LLM_TEMPERATURE = float(os.getenv('DEEPSEEK_TEMPERATURE', '0.3'))  # 采样温度
 LLM_MAX_TOKENS = int(os.getenv('DEEPSEEK_MAX_TOKENS', '3000'))  # 默认token限制
 LLM_MAX_TOKENS_LONG = int(os.getenv('DEEPSEEK_MAX_TOKENS_LONG', '6000'))  # 长报告token限制
+LLM_MAX_TOKENS_EXECUTIVE = int(os.getenv('DEEPSEEK_MAX_TOKENS_EXECUTIVE', '4000'))  # 执行摘要token限制 (2000字)
 
 # ================= Professional Formatting Configuration =================
 
@@ -107,13 +108,14 @@ FONT_SIZE_DATA = 10.5      # pt (五号)
 
 # Color Scheme
 COLOR_TEXT_DARK = '#333333'      # Dark gray for body text
+COLOR_TEXT_LIGHT = '#666666'     # Light gray for secondary text
 COLOR_ACCENT_BLUE = '#0066CC'    # Deep blue for titles/keywords
 COLOR_DIVIDER = '#EEEEEE'        # Light gray for dividers
 COLOR_HIGHLIGHT_BG = '#E6F3FF'   # Light blue background
 COLOR_BORDER_LIGHT = '#DDDDDD'   # Light border color
 
 # Spacing
-LINE_SPACING = 1.5               # 1.5x line spacing
+LINE_SPACING = 1.0               # 1.0x line spacing (compact to reduce whitespace)
 SPACING_BEFORE_PARA = 0.5        # lines
 SPACING_AFTER_PARA = 0.5         # lines
 FIRST_LINE_INDENT_CHARS = 2      # 2 characters

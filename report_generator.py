@@ -53,10 +53,48 @@ def get_llm_client():
     return _llm_client if _llm_client is not False else None
 
 
+def clean_llm_content(content: str) -> str:
+    """
+    Clean LLM-generated content by removing markdown code block markers
+
+    This function removes ``` markers that sometimes appear in LLM output,
+    while preserving the actual content. It handles unclosed code blocks
+    by ensuring content is never lost.
+
+    Args:
+        content: Raw LLM response
+
+    Returns:
+        Cleaned content without ``` markers
+    """
+    import re
+
+    # Method 1: Remove code block markers while preserving content
+    # This handles both properly closed and unclosed blocks
+    result = re.sub(r'```[a-zA-Z]*\n?', '', content)  # Remove opening markers
+    result = re.sub(r'```\n?', '', result)  # Remove closing markers
+
+    # Clean up any resulting empty lines
+    lines = result.split('\n')
+    cleaned_lines = []
+    consecutive_empty = 0
+
+    for line in lines:
+        if line.strip() == '':
+            consecutive_empty += 1
+            if consecutive_empty <= 2:  # Keep up to 2 consecutive empty lines
+                cleaned_lines.append(line)
+        else:
+            consecutive_empty = 0
+            cleaned_lines.append(line)
+
+    return '\n'.join(cleaned_lines).strip()
+
+
 class WeeklyReportGenerator:
     """Weekly Market Observation Report Generator (Enhanced with Charts)"""
 
-    def __init__(self, enable_charts: bool = True, use_llm: bool = True, use_template: bool = True, enable_full_article: bool = True):
+    def __init__(self, enable_charts: bool = True, use_llm: bool = True, use_template: bool = False, enable_full_article: bool = True):
         """
         Initialize report generator
 
@@ -84,11 +122,12 @@ class WeeklyReportGenerator:
             self.llm_client = None
 
         # Initialize background template manager
-        if self.use_template:
-            self.bg_manager = BackgroundTemplateManager()
+        # Background functionality disabled - use_template defaults to False
+        # if self.use_template:
+        #     self.bg_manager = BackgroundTemplateManager()
 
         logger.info(f"WeeklyReportGenerator initialized (charts: {self.enable_charts}, llm: {self.use_llm}, template: {self.use_template})")
-        logger.info("Professional formatting enabled: Microsoft YaHei fonts, professional colors, 1.5x line spacing")
+        logger.info(f"Professional formatting enabled: Microsoft YaHei fonts, professional colors, {config.LINE_SPACING}x line spacing")
 
     def generate_weekly_report(self, analyses, output_path=None, market_overview=None, use_llm=True, use_template=None):
         """
@@ -105,10 +144,11 @@ class WeeklyReportGenerator:
         self.use_llm = use_llm and config.ENABLE_LLM_ANALYSIS
 
         # Update template mode if explicitly provided
-        if use_template is not None:
-            self.use_template = use_template
-            if self.use_template:
-                self.bg_manager = BackgroundTemplateManager()
+        # Background functionality disabled
+        # if use_template is not None:
+        #     self.use_template = use_template
+        #     if self.use_template:
+        #         self.bg_manager = BackgroundTemplateManager()
         if self.use_llm:
             self.llm_client = get_llm_client()
             if self.llm_client is None:
@@ -141,7 +181,7 @@ class WeeklyReportGenerator:
 
             # Add report overview
             WordStyler.apply_heading_style(doc, '报告概览', level=1, emoji='📊')
-            WordStyler.add_section_divider(doc)
+            # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
 
             report_date = datetime.now().strftime('%Y年%m月%d日')
             total_items = len(analyses)
@@ -165,42 +205,78 @@ class WeeklyReportGenerator:
                 overview.add_run('市场情绪: ').bold = True
                 overview.add_run(f'{market_sentiment}\n')
 
-            # Add executive summary
+            # Add executive summary with compact formatting
             WordStyler.apply_heading_style(doc, '执行摘要', level=1, emoji='📝')
-            WordStyler.add_section_divider(doc)
 
             executive_summary = self._generate_executive_summary(analyses, market_overview or {})
-            for line in executive_summary.split('\n'):
-                if line.strip():
-                    WordStyler.apply_body_style(doc, line.strip(), indent=True)
+
+            # Debug logging
+            logger.info(f"[DEBUG] Executive summary length: {len(executive_summary)} chars, {len(executive_summary.strip())} chars (stripped)")
+
+            # Direct approach: add content as one block with proper formatting
+            if executive_summary and executive_summary.strip():
+                import re
+                # Clean markdown code blocks if present
+                cleaned = clean_llm_content(executive_summary)
+
+                logger.info(f"[DEBUG] Cleaned content length: {len(cleaned)} chars")
+
+                # Add as a single paragraph with proper spacing
+                p = doc.add_paragraph()
+                run = p.add_run(cleaned)
+                # Apply font settings
+                run.font.name = config.FONT_BODY
+                run.font.size = Pt(config.FONT_SIZE_BODY)
+                # Compact spacing
+                WordStyler.set_spacing(p, line_spacing=1.0, before=Pt(3), after=Pt(6))
+
+                logger.info(f"[DEBUG] Executive summary paragraph added to document")
+            else:
+                logger.warning("[DEBUG] Executive summary is empty or None, using fallback")
 
             # Add full AI article (NEW - 3000+ words)
             if self.enable_full_article:
                 full_article = self._generate_full_article(analyses, market_overview or {})
                 if full_article:
-                    doc.add_page_break()
-                    WordStyler.apply_heading_style(doc, 'AI深度分析报告', level=1, emoji='🤖')
-                    WordStyler.add_section_divider(doc)
+                    # Use minimal spacing instead of page break for more compact layout
+                    # doc.add_page_break()  # Removed to save space
+                    # Create main heading with compact spacing
+                    h = doc.add_paragraph()
+                    run = h.add_run('🤖 AI深度分析报告')
+                    run.bold = True
+                    run.font.size = Pt(15)
+                    run.font.color.rgb = RGBColor(0, 102, 204)
+                    WordStyler.set_spacing(h, line_spacing=1.0, before=Pt(6), after=Pt(3))
+                    # Skip section divider for more compact layout
 
                     # Add article intro
                     intro = doc.add_paragraph()
                     intro.add_run('以下是由AI生成的3000字深度分析报告，涵盖市场全景、投资趋势、行业洞察与投资建议。').italic = True
-                    WordStyler.set_spacing(intro, line_spacing=config.LINE_SPACING, before=Pt(6))
+                    WordStyler.set_spacing(intro, line_spacing=1.0, before=Pt(2))
                     WordStyler.set_color(intro.runs[0], config.COLOR_TEXT_LIGHT)
 
-                    # Add article content paragraph by paragraph
+                    # Add article content paragraph by paragraph with maximum compactness
                     for paragraph in full_article.split('\n\n'):
                         if paragraph.strip():
                             # Check if this is a heading
                             if paragraph.strip().startswith('###') or paragraph.strip().startswith('##'):
                                 heading_text = paragraph.strip().lstrip('#').strip()
-                                # Determine heading level
+                                # Determine heading level - use compact style
                                 if paragraph.startswith('###'):
-                                    WordStyler.apply_heading_style(doc, heading_text, level=3)
+                                    # Create compact heading manually
+                                    h = doc.add_paragraph()
+                                    run = h.add_run(heading_text)
+                                    run.bold = True
+                                    WordStyler.set_spacing(h, line_spacing=1.0, before=Pt(3), after=Pt(1))
                                 else:
-                                    WordStyler.apply_heading_style(doc, heading_text, level=2)
+                                    # Level 2 heading
+                                    h = doc.add_paragraph()
+                                    run = h.add_run(heading_text)
+                                    run.bold = True
+                                    run.font.size = Pt(13)
+                                    WordStyler.set_spacing(h, line_spacing=1.0, before=Pt(5), after=Pt(1))
                             else:
-                                # Regular paragraph
+                                # Regular paragraph - use maximum compact formatting
                                 p = doc.add_paragraph()
                                 for line in paragraph.split('\n'):
                                     if line.strip():
@@ -211,18 +287,19 @@ class WeeklyReportGenerator:
                                             run.bold = True
                                         elif line.strip().startswith('- '):
                                             # Bullet point
-                                            run = p.add_run(line.strip() + '\n')
+                                            run = p.add_run(line.strip() + ' ')
                                         elif line.strip().startswith(('1. ', '2. ', '3. ', '4. ', '5. ', '6. ')):
                                             # Numbered list item
-                                            run = p.add_run(line.strip() + '\n')
+                                            run = p.add_run(line.strip() + ' ')
                                             run.bold = True
                                         else:
-                                            run = p.add_run(line.strip() + '\n')
-                                WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING, after=Pt(6))
+                                            run = p.add_run(line.strip() + ' ')
+                                # Maximum compact spacing
+                                WordStyler.set_spacing(p, line_spacing=1.0, after=Pt(0))
 
             # Add market overview
             WordStyler.apply_heading_style(doc, '市场概览', level=1, emoji='🌐')
-            WordStyler.add_section_divider(doc)
+            # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
 
             content_types = [a['content_type'] for a in analyses]
             type_counts = Counter(content_types)
@@ -238,7 +315,7 @@ class WeeklyReportGenerator:
 
             # Add industry sector analysis
             WordStyler.apply_heading_style(doc, '行业板块分析', level=1, emoji='🏭')
-            WordStyler.add_section_divider(doc)
+            # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
 
             all_topics = []
             for analysis in analyses:
@@ -266,42 +343,44 @@ class WeeklyReportGenerator:
 
             # Add key trends
             WordStyler.apply_heading_style(doc, '关键趋势和观察', level=1, emoji='📈')
-            WordStyler.add_section_divider(doc)
 
             key_trends = self._generate_key_trends(analyses, market_overview or {})
-            for line in key_trends.split('\n'):
-                if line.strip():
-                    if line.strip().startswith('**') and line.strip().endswith('**'):
-                        title_text = line.strip().replace('**', '')
-                        WordStyler.apply_heading_style(doc, title_text, level=3, emoji='')
-                    else:
-                        WordStyler.apply_body_style(doc, line.strip().lstrip())
+            if key_trends.strip():
+                import re
+                cleaned = clean_llm_content(key_trends)
+                # Add as paragraph block
+                p = doc.add_paragraph()
+                run = p.add_run(cleaned)
+                run.font.name = config.FONT_BODY
+                run.font.size = Pt(config.FONT_SIZE_BODY)
+                WordStyler.set_spacing(p, line_spacing=1.0, before=Pt(3), after=Pt(6))
 
             # Add market recommendations
             WordStyler.apply_heading_style(doc, '市场观察和建议', level=1, emoji='💡')
-            WordStyler.add_section_divider(doc)
 
             recommendations = self._generate_recommendations(analyses)
-            for line in recommendations.split('\n'):
-                if line.strip():
-                    if line.strip().startswith(('1. ', '2. ', '3. ', '4. ')):
-                        WordStyler.apply_heading_style(doc, line.strip(), level=3, emoji='')
-                    else:
-                        WordStyler.apply_body_style(doc, line.strip().lstrip())
+            if recommendations.strip():
+                cleaned = clean_llm_content(recommendations)
+                # Add as paragraph block
+                p = doc.add_paragraph()
+                run = p.add_run(cleaned)
+                run.font.name = config.FONT_BODY
+                run.font.size = Pt(config.FONT_SIZE_BODY)
+                WordStyler.set_spacing(p, line_spacing=1.0, before=Pt(3), after=Pt(6))
 
             # Add appendix
             WordStyler.apply_heading_style(doc, '附录', level=1, emoji='📎')
-            WordStyler.add_section_divider(doc)
+            # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
 
-            # Add charts section (Phase 3: Visualization)
+            # Add charts section (Phase 3: Visualization) - limited for page control
             if self.enable_charts:
-                charts_section = self._add_charts_section(doc, analyses, market_overview)
+                charts_section = self._add_charts_section(doc, analyses, market_overview, max_charts=2)
 
             WordStyler.apply_body_style(doc, '数据来源:', bold_prefix='')
             WordStyler.apply_body_style(doc, '主要数据来源: PitchBook 订阅邮件', bold_prefix='')
             WordStyler.apply_body_style(doc, f'处理周期: {datetime.now().strftime("%Y-%m-%d")}', bold_prefix='')
 
-            WordStyler.add_section_divider(doc)
+            # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
 
             WordStyler.apply_body_style(doc, '报告生成信息:', bold_prefix='')
             WordStyler.apply_body_style(doc, f'生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', bold_prefix='')
@@ -340,13 +419,21 @@ class WeeklyReportGenerator:
                 logger.info("Using LLM to generate executive summary (1/3 LLM tasks)...")
                 result = self.llm_client.generate_executive_summary(analyses, "本周")
 
+                logger.info(f"[DEBUG] LLM result success: {result['success']}, has content: {'content' in result}")
+                if result.get('content'):
+                    logger.info(f"[DEBUG] LLM content length: {len(result['content'])} chars")
+
                 if result['success']:
                     logger.info("✓ Executive summary generated by LLM")
-                    return result['content']
+                    content = clean_llm_content(result['content'])
+                    logger.info(f"[DEBUG] Cleaned content length: {len(content)} chars")
+                    return content
                 else:
                     logger.warning(f"LLM generation failed: {result.get('error')}, falling back to template")
             except Exception as e:
                 logger.warning(f"LLM error: {e}, falling back to template")
+                import traceback
+                traceback.print_exc()
 
         # Fallback to template
         logger.info("Using template for executive summary")
@@ -391,7 +478,7 @@ class WeeklyReportGenerator:
 
                 if result['success']:
                     logger.info("✓ Key trends generated by LLM")
-                    return result['content']
+                    return clean_llm_content(result['content'])
                 else:
                     logger.warning(f"LLM generation failed: {result.get('error')}, falling back to template")
             except Exception as e:
@@ -463,7 +550,7 @@ class WeeklyReportGenerator:
 
                 if result['success']:
                     logger.info("✓ Recommendations generated by LLM")
-                    return result['content']
+                    return clean_llm_content(result['content'])
                 else:
                     logger.warning(f"LLM generation failed: {result.get('error')}, falling back to template")
             except Exception as e:
@@ -550,7 +637,7 @@ class WeeklyReportGenerator:
                 elif word_count >= 3000:
                     logger.info(f"✓ Article meets 3000+ word requirement: {word_count} chars")
 
-                return result['content']
+                return clean_llm_content(result['content'])
             else:
                 logger.error(f"Failed to generate full article: {result.get('error')}")
                 return None
@@ -572,9 +659,10 @@ class WeeklyReportGenerator:
 
     def _add_email_analysis_section(self, doc, email_analyses):
         """Add email analysis section (with LLM support)"""
-        doc.add_page_break()
+        # Use minimal spacing instead of page break for more compact layout
+        # doc.add_page_break()  # Removed to save space
         WordStyler.apply_heading_style(doc, '邮件内容深度分析', level=1, emoji='📧')
-        WordStyler.add_section_divider(doc)
+        # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
 
         total_emails = min(len(email_analyses), 5)
         for idx, analysis in enumerate(email_analyses[:5], 1):  # Limit to 5 emails
@@ -614,23 +702,18 @@ class WeeklyReportGenerator:
                     if result['success']:
                         logger.info(f"✓ Email {idx} LLM analysis generated")
                         # Add LLM analysis content
-                        doc.add_paragraph()
                         p = doc.add_paragraph()
                         p.add_run('📖 深度分析:').bold = True
-                        WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+                        WordStyler.set_spacing(p, line_spacing=1.15, after=Pt(3))
 
-                        # Split by lines and format
-                        for line in result['content'].split('\n'):
-                            line = line.strip()
-                            if not line:
-                                continue
-                            # Handle numbered sections
-                            if line[0].isdigit() and '.' in line[:3]:
-                                doc.add_heading(line, level=4)
-                            elif line.startswith('- '):
-                                WordStyler.apply_body_style(doc, line, bold_prefix='')
-                            else:
-                                WordStyler.apply_body_style(doc, line, bold_prefix='')
+                        # Add LLM analysis content as a block
+                        clean_content = clean_llm_content(result['content'])
+                        if clean_content.strip():
+                            p = doc.add_paragraph()
+                            run = p.add_run(clean_content)
+                            run.font.name = config.FONT_BODY
+                            run.font.size = Pt(config.FONT_SIZE_BODY)
+                            WordStyler.set_spacing(p, line_spacing=1.0, before=Pt(2), after=Pt(4))
                         llm_analysis_added = True
                     else:
                         logger.warning(f"LLM analysis failed for email {idx}")
@@ -681,9 +764,10 @@ class WeeklyReportGenerator:
 
     def _add_report_analysis_section(self, doc, report_analyses):
         """Add report content analysis section (NEW!)"""
-        doc.add_page_break()
+        # Use minimal spacing instead of page break for more compact layout
+        # doc.add_page_break()  # Removed to save space
         WordStyler.apply_heading_style(doc, '报告内容深度分析', level=1, emoji='📊')
-        WordStyler.add_section_divider(doc)
+        # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
 
         WordStyler.apply_body_style(doc, f"本节对下载的 {len(report_analyses)} 份报告进行深度内容分析", bold_prefix='')
 
@@ -738,11 +822,17 @@ class WeeklyReportGenerator:
                 if metrics.get('sample_percentages'):
                     WordStyler.apply_body_style(doc, f"  • 百分比示例: {', '.join(metrics['sample_percentages'][:5])}", bold_prefix='')
 
-    def _add_charts_section(self, doc, analyses, market_overview):
+    def _add_charts_section(self, doc, analyses, market_overview, max_charts=2):
         """
         Add visualization charts section to report (Phase 3 feature)
 
-        Generates and embeds charts:
+        Args:
+            doc: Document object
+            analyses: Analysis results
+            market_overview: Market overview data
+            max_charts: Maximum number of charts to add (default: 2 for page control)
+
+        Generates and embeds charts (limited selection):
         - Industry distribution pie chart
         - Investment timeline
         - Top investors ranking
@@ -759,9 +849,8 @@ class WeeklyReportGenerator:
             return None
 
         try:
-            doc.add_page_break()
-            WordStyler.apply_heading_style(doc, '数据可视化分析 (Data Visualization)', level=1, emoji='📊')
-            WordStyler.add_section_divider(doc)
+            # Use minimal spacing instead of page break for more compact layout
+            WordStyler.apply_compact_heading_style(doc, '数据可视化分析 (Data Visualization)', level=1, emoji='📊')
 
             WordStyler.apply_body_style(
                 doc,
@@ -782,52 +871,25 @@ class WeeklyReportGenerator:
                 doc.add_paragraph('暂无足够数据生成图表。')
                 return None
 
-            # Add charts to document
+            # Define chart priority (most important first for page control)
+            chart_priority = [
+                ('industry_distribution', '行业分布 (Industry Distribution)', '行业板块分布饼图'),
+                ('hot_sectors_bar', '热门投资领域 (Hot Investment Sectors)', '热门领域投资金额排名'),
+                ('deal_stage_pie', '融资轮次分布 (Deal Stage Distribution)', '各融资轮次占比'),
+                ('top_investors', '活跃投资机构 (Top Investors)', '交易数量排名'),
+            ]
+
+            # Add charts to document (limited by max_charts)
             chart_count = 0
+            for chart_key, heading_text, caption in chart_priority:
+                if chart_count >= max_charts:
+                    break
+                if charts.get(chart_key):
+                    WordStyler.apply_compact_heading_style(doc, heading_text, level=2, emoji='')
+                    self._add_chart_to_doc(doc, charts[chart_key], caption, compact=True)
+                    chart_count += 1
 
-            # Industry Distribution
-            if charts.get('industry_distribution'):
-                WordStyler.apply_heading_style(doc, '行业分布 (Industry Distribution)', level=2, emoji='')
-                self._add_chart_to_doc(doc, charts['industry_distribution'], '行业板块分布饼图')
-                chart_count += 1
-
-            # Deal Stages
-            if charts.get('deal_stage_pie'):
-                WordStyler.apply_heading_style(doc, '融资轮次分布 (Deal Stage Distribution)', level=2, emoji='')
-                self._add_chart_to_doc(doc, charts['deal_stage_pie'], '各融资轮次占比')
-                chart_count += 1
-
-            # Top Investors
-            if charts.get('top_investors'):
-                WordStyler.apply_heading_style(doc, '活跃投资机构 (Top Investors)', level=2, emoji='')
-                self._add_chart_to_doc(doc, charts['top_investors'], '交易数量排名')
-                chart_count += 1
-
-            # Investment Timeline
-            if charts.get('investment_timeline'):
-                WordStyler.apply_heading_style(doc, '投资趋势 (Investment Trends)', level=2, emoji='')
-                self._add_chart_to_doc(doc, charts['investment_timeline'], '投资金额与交易数量时间线')
-                chart_count += 1
-
-            # Stage Amounts
-            if charts.get('stage_bar'):
-                WordStyler.apply_heading_style(doc, '各轮次投资额 (Investment by Stage)', level=2, emoji='')
-                self._add_chart_to_doc(doc, charts['stage_bar'], '各轮次投资总额对比')
-                chart_count += 1
-
-            # Hot Sectors
-            if charts.get('hot_sectors_bar'):
-                WordStyler.apply_heading_style(doc, '热门投资领域 (Hot Investment Sectors)', level=2, emoji='')
-                self._add_chart_to_doc(doc, charts['hot_sectors_bar'], '热门领域投资金额排名')
-                chart_count += 1
-
-            # Investment Network
-            if charts.get('investment_network'):
-                WordStyler.apply_heading_style(doc, '投资关系网络 (Investment Network)', level=2, emoji='')
-                self._add_chart_to_doc(doc, charts['investment_network'], '投资机构与被投企业关系网络图')
-                chart_count += 1
-
-            logger.info(f"Added {chart_count} charts to report")
+            logger.info(f"Added {chart_count} charts to report (limited to {max_charts} for page control)")
             return chart_count
 
         except Exception as e:
@@ -835,7 +897,7 @@ class WeeklyReportGenerator:
             doc.add_paragraph(f'图表生成失败: {str(e)}')
             return None
 
-    def _add_chart_to_doc(self, doc, image_path, caption=None):
+    def _add_chart_to_doc(self, doc, image_path, caption=None, compact=False):
         """
         Add chart image to Word document
 
@@ -843,14 +905,16 @@ class WeeklyReportGenerator:
             doc: Document object
             image_path: Path to chart image file
             caption: Optional caption text
+            compact: Whether to use smaller image size for page control (default: False)
         """
         if not os.path.exists(image_path):
             logger.warning(f"Chart image not found: {image_path}")
             return
 
         try:
-            # Add image with appropriate size
-            doc.add_picture(image_path, width=Inches(6.0))
+            # Add image with appropriate size (smaller if compact mode)
+            width = Inches(4.5) if compact else Inches(6.0)
+            doc.add_picture(image_path, width=width)
 
             # Add caption if provided
             if caption:
@@ -861,6 +925,8 @@ class WeeklyReportGenerator:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run(f'图: {caption}')
                 WordStyler.set_font(run, config.FONT_DATA, config.FONT_SIZE_DATA, color=config.COLOR_TEXT_DARK)
+                # Compact spacing for caption
+                WordStyler.set_spacing(p, line_spacing=1.0, after=Pt(2))
 
         except Exception as e:
             logger.error(f"Failed to add chart to document: {e}")
