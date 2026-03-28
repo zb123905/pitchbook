@@ -25,6 +25,7 @@ class LogPanel(ctk.CTkFrame):
 
         self.log_filter = "ALL"
         self.max_lines = 1000
+        self._current_line_count = 0  # 跟踪当前行数
 
         self._create_widgets()
         self._load_existing_logs()
@@ -149,20 +150,20 @@ class LogPanel(ctk.CTkFrame):
 
         # 生成时间戳
         timestamp = datetime.now().strftime("%H:%M:%S")
-
-        # 格式化日志
         line = f"[{timestamp}] [{level}] {message}\n"
 
         # 插入文本
         self.log_text.configure(state="normal")
         self.log_text.insert("end", line, (level, "TIMESTAMP"))
 
-        # 限制行数
-        line_count = int(self.log_text.index("end-1c").split(".")[0])
-        if line_count > self.max_lines:
+        # 使用跟踪的行数而不是每次计算
+        self._current_line_count += 1
+        if self._current_line_count > self.max_lines:
+            # 计算需要删除的行数
+            lines_to_delete = self._current_line_count - self.max_lines
             # 删除最早的行
-            delete_count = line_count - self.max_lines
-            self.log_text.delete(1.0, f"{delete_count}.0")
+            self.log_text.delete(1.0, f"{lines_to_delete}.0")
+            self._current_line_count = self.max_lines
 
         self.log_text.configure(state="disabled")
 
@@ -174,16 +175,33 @@ class LogPanel(ctk.CTkFrame):
         self.status_label.configure(text=f"最新: {level}")
 
     def _load_existing_logs(self):
-        """加载现有的系统日志"""
+        """异步加载现有的系统日志"""
+        self.log_text.configure(state="normal")
+        self.log_text.insert("end", "正在加载日志...\n", ("INFO", "TIMESTAMP"))
+        self.log_text.configure(state="disabled")
+
+        # 使用 after 延迟加载，避免阻塞 UI
+        self.after(100, self._do_load_logs)
+
+    def _do_load_logs(self):
+        """实际执行日志加载"""
         import config
         log_file = os.path.join(config.LOGS_DIR, 'system.log')
 
         if not os.path.exists(log_file):
+            self.log_text.configure(state="normal")
+            self.log_text.delete(1.0, "end")
+            self.log_text.insert("end", "无现有日志\n", ("INFO", "TIMESTAMP"))
+            self.log_text.configure(state="disabled")
             return
 
         try:
             with open(log_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
+
+            # 清空"正在加载"提示
+            self.log_text.configure(state="normal")
+            self.log_text.delete(1.0, "end")
 
             # 只显示最后 100 行
             for line in lines[-100:]:
@@ -200,10 +218,11 @@ class LogPanel(ctk.CTkFrame):
                         message = "]".join(parts[1:]).split("]", 1)[-1]
 
                         if self.log_filter == "ALL" or level == self.log_filter:
-                            self.log_text.configure(state="normal")
                             display_line = f"[{timestamp}] [{level}] {message}\n"
                             self.log_text.insert("end", display_line, (level, "TIMESTAMP", "DIM"))
-                            self.log_text.configure(state="disabled")
+                            self._current_line_count += 1
+
+            self.log_text.configure(state="disabled")
 
             if self.autoscroll_var.get():
                 self.log_text.see("end")

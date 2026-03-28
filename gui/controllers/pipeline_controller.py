@@ -130,6 +130,11 @@ class PipelineController:
         if hasattr(self.main_window, 'on_pipeline_complete'):
             self.main_window.on_pipeline_complete(data)
 
-    def process_queue(self):
-        """处理通知队列（应在主循环中定期调用）"""
-        self.notifier.process_queue()
+    def process_queue(self) -> bool:
+        """
+        处理通知队列（应在主循环中定期调用）
+
+        Returns:
+            是否有事件被处理
+        """
+        return self.notifier.process_queue()

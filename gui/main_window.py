@@ -17,6 +17,11 @@ from .views import ConfigPanel, ProgressPanel, OutputPanel, LogPanel
 class MainWindow(ctk.CTk):
     """主窗口类"""
 
+    # 自适应轮询间隔（针对10-30分钟静置优化）
+    POLL_INTERVAL_ACTIVE = 50      # 活跃时 50ms
+    POLL_INTERVAL_IDLE = 1000      # 空闲时 1秒（降低CPU占用）
+    IDLE_THRESHOLD = 3000          # 约5分钟无活动后进入空闲模式 (50ms * 3000 = 150s)
+
     def __init__(self):
         super().__init__()
 
@@ -32,6 +37,10 @@ class MainWindow(ctk.CTk):
         # 控制器和状态
         self.controller = PipelineController(self)
         self.current_config: Optional[PipelineConfig] = None
+
+        # 自适应轮询变量
+        self._poll_interval = self.POLL_INTERVAL_ACTIVE
+        self._idle_counter = 0
 
         # 创建界面
         self._create_widgets()
@@ -265,9 +274,19 @@ class MainWindow(ctk.CTk):
             self.tab_view.set("日志查看")
 
     def _process_queue(self):
-        """处理通知队列"""
-        self.controller.process_queue()
-        self.after(100, self._process_queue)
+        """处理通知队列（自适应间隔）"""
+        had_events = self.controller.process_queue()
+
+        # 自适应间隔调整
+        if had_events:
+            self._idle_counter = 0
+            self._poll_interval = self.POLL_INTERVAL_ACTIVE
+        else:
+            self._idle_counter += 1
+            if self._idle_counter > self.IDLE_THRESHOLD:
+                self._poll_interval = self.POLL_INTERVAL_IDLE
+
+        self.after(self._poll_interval, self._process_queue)
 
     def run(self):
         """运行主窗口"""

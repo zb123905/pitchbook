@@ -46,12 +46,14 @@ class ThreadSafeNotifier:
         """
         self.queue.put((event_type, data))
 
-    def process_queue(self):
+    def process_queue(self) -> bool:
         """
-        在主线程中处理队列（通过 after() 调用）
+        在主线程中处理队列（由主窗口调度）
 
-        应在主窗口初始化后定期调用
+        Returns:
+            是否有事件被处理
         """
+        had_events = False
         try:
             while True:
                 event_type, data = self.queue.get_nowait()
@@ -62,13 +64,12 @@ class ThreadSafeNotifier:
                         self.main_window.after(0, lambda cb=callback, d=data: cb(d))
                     else:
                         callback(data)
+                had_events = True
                 self.queue.task_done()
         except queue.Empty:
             pass
-
-        # 继续调度
-        if self.main_window:
-            self.main_window.after(100, self.process_queue)
+        # 不再自动重新调度，由主窗口统一管理
+        return had_events
 
 
 class ProgressEvent:
