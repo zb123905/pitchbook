@@ -297,49 +297,49 @@ class WeeklyReportGenerator:
                                 # Maximum compact spacing
                                 WordStyler.set_spacing(p, line_spacing=1.0, after=Pt(0))
 
-            # Add market overview
-            WordStyler.apply_heading_style(doc, '市场概览', level=1, emoji='🌐')
+            # Add market overview - DISABLED to save space for page count control
+            # WordStyler.apply_heading_style(doc, '市场概览', level=1, emoji='🌐')
             # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
+            #
+            # content_types = [a['content_type'] for a in analyses]
+            # type_counts = Counter(content_types)
+            #
+            # WordStyler.apply_body_style(doc, '内容类型分布:', bold_prefix='')
+            #
+            # for content_type, count in type_counts.most_common():
+            #     percentage = (count / len(analyses)) * 100
+            #     p = doc.add_paragraph()
+            #     p.add_run(f'{content_type}: ').bold = True
+            #     p.add_run(f'{count} ({percentage:.1f}%)')
+            #     WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+            #
+            # # Add industry sector analysis
+            # WordStyler.apply_heading_style(doc, '行业板块分析', level=1, emoji='🏭')
+            # # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
+            #
+            # all_topics = []
+            # for analysis in analyses:
+            #     all_topics.extend(analysis['key_topics'])
+            #
+            # if all_topics:
+            #     topic_counts = Counter(all_topics)
+            #
+            #     WordStyler.apply_body_style(doc, '热门行业板块:', bold_prefix='')
+            #
+            #     for topic, count in topic_counts.most_common():
+            #         percentage = (count / len(analyses)) * 100
+            #         p = doc.add_paragraph()
+            #         p.add_run(f'{topic}: ').bold = True
+            #         p.add_run(f'{count} 次提及 ({percentage:.1f}%)')
+            #         WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
 
-            content_types = [a['content_type'] for a in analyses]
-            type_counts = Counter(content_types)
-
-            WordStyler.apply_body_style(doc, '内容类型分布:', bold_prefix='')
-
-            for content_type, count in type_counts.most_common():
-                percentage = (count / len(analyses)) * 100
-                p = doc.add_paragraph()
-                p.add_run(f'{content_type}: ').bold = True
-                p.add_run(f'{count} ({percentage:.1f}%)')
-                WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
-
-            # Add industry sector analysis
-            WordStyler.apply_heading_style(doc, '行业板块分析', level=1, emoji='🏭')
-            # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
-
-            all_topics = []
-            for analysis in analyses:
-                all_topics.extend(analysis['key_topics'])
-
-            if all_topics:
-                topic_counts = Counter(all_topics)
-
-                WordStyler.apply_body_style(doc, '热门行业板块:', bold_prefix='')
-
-                for topic, count in topic_counts.most_common():
-                    percentage = (count / len(analyses)) * 100
-                    p = doc.add_paragraph()
-                    p.add_run(f'{topic}: ').bold = True
-                    p.add_run(f'{count} 次提及 ({percentage:.1f}%)')
-                    WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
-
-            # Add email analysis section
-            if email_analyses:
-                self._add_email_analysis_section(doc, email_analyses)
-
-            # Add report analysis section (NEW!)
-            if report_analyses:
-                self._add_report_analysis_section(doc, report_analyses)
+            # Add email analysis section - DISABLED to save space
+            # if email_analyses:
+            #     self._add_email_analysis_section(doc, email_analyses)
+            #
+            # # Add report analysis section (NEW!)
+            # if report_analyses:
+            #     self._add_report_analysis_section(doc, report_analyses)
 
             # Add key trends
             WordStyler.apply_heading_style(doc, '关键趋势和观察', level=1, emoji='📈')
@@ -372,9 +372,9 @@ class WeeklyReportGenerator:
             WordStyler.apply_heading_style(doc, '附录', level=1, emoji='📎')
             # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
 
-            # Add charts section (Phase 3: Visualization) - limited for page control
-            if self.enable_charts:
-                charts_section = self._add_charts_section(doc, analyses, market_overview, max_charts=2)
+            # Add charts section (Phase 3: Visualization) - DISABLED for page count control
+            # if self.enable_charts:
+            #     charts_section = self._add_charts_section(doc, analyses, market_overview, max_charts=2)
 
             WordStyler.apply_body_style(doc, '数据来源:', bold_prefix='')
             WordStyler.apply_body_style(doc, '主要数据来源: PitchBook 订阅邮件', bold_prefix='')
