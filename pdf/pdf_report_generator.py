@@ -44,14 +44,14 @@ class PDFReportGenerator(WeeklyReportGenerator):
     - Appendix with data sources
     """
 
-    def __init__(self, enable_charts: bool = True, use_llm: bool = False, use_template: bool = True):
+    def __init__(self, enable_charts: bool = True, use_llm: bool = False, use_template: bool = False):
         """
         Initialize PDF report generator
 
         Args:
             enable_charts: Whether to include visualization charts
             use_llm: Whether to use LLM for content generation
-            use_template: Whether to use background template (default: True)
+            use_template: Whether to use background template (default: False)
         """
         # Initialize parent class attributes
         self.enable_charts = enable_charts
@@ -262,7 +262,7 @@ class PDFReportGenerator(WeeklyReportGenerator):
 
         # Report info
         report_date = datetime.now().strftime('%Y年%m月%d日')
-        version_text = 'v4.1 (PDF + Charts + NLP + 猫背景)' if self.use_template else 'v4.1 (PDF + Charts + NLP)'
+        version_text = 'v4.1 (PDF + Charts + NLP)'
         info_data = [
             ['报告日期 (Report Date)', report_date],
             ['分析项目数 (Items Analyzed)', str(len(analyses))],
@@ -569,7 +569,7 @@ class PDFReportGenerator(WeeklyReportGenerator):
         story.append(p)
         p = Paragraph(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", self.styles['CustomBody'])
         story.append(p)
-        p = Paragraph("报告版本: v4.1 (专业格式 + 猫背景)", self.styles['CustomBody'])
+        p = Paragraph("报告版本: v4.1 (专业格式)", self.styles['CustomBody'])
         story.append(p)
         p = Paragraph("系统: VC/PE PitchBook 自动化分析系统", self.styles['CustomBody'])
         story.append(p)
