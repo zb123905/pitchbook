@@ -111,12 +111,30 @@ class DeepSeekClient:
         """Check if client is available"""
         return self._client is not None and self.config.validate()
 
+    def _get_long_timeout_client(self):
+        """
+        Get or create a client with longer timeout for large requests
+
+        Returns:
+            OpenAI client with 180 second timeout
+        """
+        if not hasattr(self, '_long_timeout_client'):
+            from openai import OpenAI
+            self._long_timeout_client = OpenAI(
+                api_key=self.config.api_key,
+                base_url=self.config.base_url,
+                timeout=self.config.timeout_long  # 180 seconds
+            )
+            logger.debug(f"Created long timeout client (timeout={self.config.timeout_long}s)")
+        return self._long_timeout_client
+
     def chat_completion(
         self,
         messages: List[Dict[str, str]],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
-        response_format: Optional[str] = None
+        response_format: Optional[str] = None,
+        use_long_timeout: bool = False
     ) -> Dict[str, Any]:
         """
         Send chat completion request with retry logic
@@ -126,6 +144,7 @@ class DeepSeekClient:
             temperature: Sampling temperature
             max_tokens: Maximum tokens to generate
             response_format: Response format (e.g., "json_object")
+            use_long_timeout: Whether to use longer timeout (180s) for large requests
 
         Returns:
             Response dict with content and metadata
@@ -155,13 +174,17 @@ class DeepSeekClient:
         if response_format == 'json_object':
             request_params['response_format'] = {'type': 'json_object'}
 
+        # Choose client based on timeout requirement
+        client = self._get_long_timeout_client() if use_long_timeout else self._client
+
         # Retry logic with exponential backoff
         last_error = None
         for attempt in range(self.config.max_retries):
             try:
-                logger.debug(f"API request (attempt {attempt + 1}/{self.config.max_retries})")
+                timeout_desc = "long timeout" if use_long_timeout else "standard timeout"
+                logger.debug(f"API request ({timeout_desc}, attempt {attempt + 1}/{self.config.max_retries})")
 
-                response = self._client.chat.completions.create(**request_params)
+                response = client.chat.completions.create(**request_params)
 
                 content = response.choices[0].message.content
 
@@ -349,7 +372,7 @@ class DeepSeekClient:
         time_range: str = "本周"
     ) -> Dict[str, Any]:
         """
-        Generate executive summary using LLM (2000 words)
+        Generate executive summary using LLM (1500-2000 words)
 
         Args:
             analyses: List of analysis results
@@ -365,10 +388,12 @@ class DeepSeekClient:
 
         logger.info(f"[LLM] Generating executive summary for {len(analyses)} analyses")
 
-        # Increase max_tokens to ensure 2000 word output (Chinese ~1.5 tokens/word)
+        # Increase max_tokens to ensure 1500-2000 word output (Chinese ~1.5 tokens/word)
+        # Use long timeout for large request (processing multiple email analyses)
         result = self.chat_completion(
             messages=messages,
-            max_tokens=MAX_TOKENS_EXECUTIVE  # Use config value (default: 4000)
+            max_tokens=MAX_TOKENS_EXECUTIVE,  # Use config value (default: 4000)
+            use_long_timeout=True  # Use 180s timeout for large requests
         )
 
         if result['success']:
@@ -387,11 +412,13 @@ class DeepSeekClient:
 
             logger.info(f"[LLM] Executive summary generated ({result.get('usage', {}).get('total_tokens', 'N/A')} tokens)")
 
-            # Validate word count meets target
-            if word_count < 1800:
-                logger.warning(f"[LLM] Executive summary is shorter than target: {word_count} words (target: 2000)")
-            elif word_count >= 2000:
-                logger.info(f"[LLM] Executive summary meets 2000 word requirement: {word_count} words")
+            # Validate word count meets target (1500-2000 words)
+            if word_count < 1400:
+                logger.warning(f"[LLM] Executive summary is shorter than target: {word_count} words (target: 1500-2000)")
+            elif word_count >= 1500 and word_count <= 2000:
+                logger.info(f"[LLM] Executive summary meets 1500-2000 word requirement: {word_count} words")
+            elif word_count > 2000:
+                logger.info(f"[LLM] Executive summary exceeds 2000 words: {word_count} words")
 
             return {
                 'success': True,
@@ -431,7 +458,8 @@ class DeepSeekClient:
 
         result = self.chat_completion(
             messages=messages,
-            max_tokens=self.config.max_tokens_long
+            max_tokens=self.config.max_tokens_long,
+            use_long_timeout=True  # Use 180s timeout for large requests
         )
 
         if result['success']:
@@ -473,7 +501,8 @@ class DeepSeekClient:
 
         result = self.chat_completion(
             messages=messages,
-            max_tokens=self.config.max_tokens_long
+            max_tokens=self.config.max_tokens_long,
+            use_long_timeout=True  # Use 180s timeout for large requests
         )
 
         if result['success']:
@@ -539,7 +568,7 @@ class DeepSeekClient:
         all_analyses: List[Dict]
     ) -> Dict:
         """
-        生成完整的3000字周报文章
+        生成完整的2000字周报文章
 
         Args:
             weekly_data: 本周汇总数据
@@ -554,7 +583,7 @@ class DeepSeekClient:
         prompt_templates = VCPEPromptTemplates()
         messages = prompt_templates.get_full_article_prompt(weekly_data, all_analyses)
 
-        logger.info(f"[LLM] Generating full article ({len(all_analyses)} emails, 3000+ words)")
+        logger.info(f"[LLM] Generating full article ({len(all_analyses)} emails, 2000+ words)")
 
         # Create a temporary client with longer timeout for article generation
         long_timeout_client = OpenAI(
@@ -595,8 +624,10 @@ class DeepSeekClient:
                 word_count = len(content)
 
                 # 验证字数是否达标
-                if word_count < 2000:
-                    logger.warning(f"[LLM] Article may be too short: {word_count} chars (target: 3000+)")
+                if word_count < 1500:
+                    logger.warning(f"[LLM] Article may be too short: {word_count} chars (target: 2000+)")
+                elif word_count >= 2000:
+                    logger.info(f"[LLM] Article meets 2000+ word requirement: {word_count} chars")
 
                 return {
                     'success': True,
@@ -635,29 +666,6 @@ class DeepSeekClient:
             'error_type': type(last_error).__name__,
             'content': None
         }
-
-        if result['success']:
-            content = result['content']
-            word_count = len(content)
-            logger.info(f"[LLM] Full article generated ({word_count} chars, {result.get('usage', {}).get('total_tokens', 'N/A')} tokens)")
-
-            # 验证字数是否达标
-            if word_count < 2000:
-                logger.warning(f"[LLM] Article may be too short: {word_count} chars (target: 3000+)")
-
-            return {
-                'success': True,
-                'content': content,
-                'word_count': word_count,
-                'usage': result.get('usage', {})
-            }
-        else:
-            logger.error(f"[LLM] Failed to generate full article: {result.get('error')}")
-            return {
-                'success': False,
-                'error': result.get('error'),
-                'content': None
-            }
 
 
 def get_default_client() -> Optional[DeepSeekClient]:

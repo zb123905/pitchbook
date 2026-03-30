@@ -74,6 +74,9 @@ def clean_llm_content(content: str) -> str:
     result = re.sub(r'```[a-zA-Z]*\n?', '', content)  # Remove opening markers
     result = re.sub(r'```\n?', '', result)  # Remove closing markers
 
+    # NEW: Remove markdown bold markers but keep content
+    result = re.sub(r'\*\*(.+?)\*\*', r'\1', result)  # **text** -> text
+
     # Clean up any resulting empty lines
     lines = result.split('\n')
     cleaned_lines = []
@@ -91,6 +94,66 @@ def clean_llm_content(content: str) -> str:
     return '\n'.join(cleaned_lines).strip()
 
 
+def extract_text_from_json(content: str) -> str:
+    """
+    Extract plain text from LLM JSON output.
+
+    Handles cases where LLM returns JSON format despite prompt asking for plain text.
+    Extracts all string values from JSON and joins them into readable text.
+
+    Args:
+        content: Raw LLM response (may be JSON or plain text)
+
+    Returns:
+        Extracted plain text content
+    """
+    import json
+    import re
+
+    content = content.strip()
+
+    # Try to parse as JSON first
+    try:
+        data = json.loads(content)
+
+        def extract_values(obj, depth=0):
+            """Recursively extract all text values from JSON structure."""
+            if isinstance(obj, dict):
+                result = []
+                for key, value in obj.items():
+                    # Recursively process all values
+                    if isinstance(value, str):
+                        # Include substantial string values
+                        if len(value) > 15:  # More permissive threshold
+                            result.append(value)
+                    elif isinstance(value, (dict, list)):
+                        result.extend(extract_values(value, depth + 1))
+                return result
+            elif isinstance(obj, list):
+                result = []
+                for item in obj:
+                    result.extend(extract_values(item, depth + 1))
+                return result
+            elif isinstance(obj, str) and len(obj) > 15:
+                return [obj]
+            return []
+
+        extracted = extract_values(data)
+        if extracted:
+            # Join with double newlines for paragraph separation
+            result = '\n\n'.join(extracted)
+            logger.info(f"Extracted {len(extracted)} text segments from JSON: {len(result)} chars total")
+            return result
+        else:
+            logger.warning("JSON parsed but no substantial text extracted, using original")
+            return clean_llm_content(content)
+
+    except (json.JSONDecodeError, ValueError) as e:
+        # Not valid JSON, return cleaned content
+        logger.debug(f"Content is not JSON: {e}, cleaning as plain text")
+        return clean_llm_content(content)
+
+
 class WeeklyReportGenerator:
     """Weekly Market Observation Report Generator (Enhanced with Charts)"""
 
@@ -102,12 +165,12 @@ class WeeklyReportGenerator:
             enable_charts: Whether to include visualization charts (Phase 3 feature)
             use_llm: Whether to use LLM for content generation (default: True)
             use_template: Whether to use cat background template (default: True)
-            enable_full_article: Whether to generate 3000+ word AI article (default: True)
+            enable_full_article: Whether to generate 2000+ word AI article (default: True)
         """
         self.enable_charts = enable_charts and VISUALIZATION_AVAILABLE
         self.use_llm = use_llm and config.ENABLE_LLM_ANALYSIS
         self.use_template = use_template
-        self.enable_full_article = enable_full_article and use_llm  # Full article requires LLM
+        self.enable_full_article = enable_full_article and use_llm  # Full article requires LLM (2000+ words)
         self.visualizer = None  # Will be loaded lazily
         self.trend_analyzer = None  # Will be loaded lazily
 
@@ -174,10 +237,15 @@ class WeeklyReportGenerator:
             doc.styles['Normal'].font.name = config.FONT_BODY
             doc.styles['Normal'].font.size = Pt(config.FONT_SIZE_BODY)
 
-            # Add title with professional styling
-            title = doc.add_heading('VC/PE 行业每周市场观察报告', level=0)
+            # Add title with custom paragraph (NOT using doc.add_heading to avoid page break settings)
+            title = doc.add_paragraph()
             title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            WordStyler.set_font(title.runs[0], config.FONT_MAIN_TITLE, config.FONT_SIZE_MAIN_TITLE, bold=True, color=config.COLOR_ACCENT_BLUE)
+            run = title.add_run('VC/PE 行业每周市场观察报告')
+            # Use larger font size for main title
+            WordStyler.set_font(run, config.FONT_MAIN_TITLE, 20, bold=True, color=config.COLOR_ACCENT_BLUE)
+            # Clear page break settings and set compact spacing
+            WordStyler.clear_page_break_settings(title)
+            WordStyler.set_spacing(title, line_spacing=1.0, before=Pt(2), after=Pt(2))
 
             # Add report overview
             WordStyler.apply_heading_style(doc, '报告概览', level=1, emoji='📊')
@@ -234,7 +302,8 @@ class WeeklyReportGenerator:
             else:
                 logger.warning("[DEBUG] Executive summary is empty or None, using fallback")
 
-            # Add full AI article (NEW - 3000+ words)
+            # Add full AI article (NEW - 2000+ words)
+            full_article = None  # Initialize variable
             if self.enable_full_article:
                 full_article = self._generate_full_article(analyses, market_overview or {})
                 if full_article:
@@ -251,7 +320,7 @@ class WeeklyReportGenerator:
 
                     # Add article intro
                     intro = doc.add_paragraph()
-                    intro.add_run('以下是由AI生成的3000字深度分析报告，涵盖市场全景、投资趋势、行业洞察与投资建议。').italic = True
+                    intro.add_run('以下是由AI生成的2000字深度分析报告，涵盖市场全景、投资趋势、行业洞察与投资建议。').italic = True
                     WordStyler.set_spacing(intro, line_spacing=1.0, before=Pt(2))
                     WordStyler.set_color(intro.runs[0], config.COLOR_TEXT_LIGHT)
 
@@ -297,49 +366,47 @@ class WeeklyReportGenerator:
                                 # Maximum compact spacing
                                 WordStyler.set_spacing(p, line_spacing=1.0, after=Pt(0))
 
-            # Add market overview - DISABLED to save space for page count control
-            # WordStyler.apply_heading_style(doc, '市场概览', level=1, emoji='🌐')
-            # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
-            #
-            # content_types = [a['content_type'] for a in analyses]
-            # type_counts = Counter(content_types)
-            #
-            # WordStyler.apply_body_style(doc, '内容类型分布:', bold_prefix='')
-            #
-            # for content_type, count in type_counts.most_common():
-            #     percentage = (count / len(analyses)) * 100
-            #     p = doc.add_paragraph()
-            #     p.add_run(f'{content_type}: ').bold = True
-            #     p.add_run(f'{count} ({percentage:.1f}%)')
-            #     WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
-            #
-            # # Add industry sector analysis
-            # WordStyler.apply_heading_style(doc, '行业板块分析', level=1, emoji='🏭')
-            # # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
-            #
-            # all_topics = []
-            # for analysis in analyses:
-            #     all_topics.extend(analysis['key_topics'])
-            #
-            # if all_topics:
-            #     topic_counts = Counter(all_topics)
-            #
-            #     WordStyler.apply_body_style(doc, '热门行业板块:', bold_prefix='')
-            #
-            #     for topic, count in topic_counts.most_common():
-            #         percentage = (count / len(analyses)) * 100
-            #         p = doc.add_paragraph()
-            #         p.add_run(f'{topic}: ').bold = True
-            #         p.add_run(f'{count} 次提及 ({percentage:.1f}%)')
-            #         WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+            # Add market overview
+            WordStyler.apply_heading_style(doc, '市场概览', level=1, emoji='🌐')
 
-            # Add email analysis section - DISABLED to save space
-            # if email_analyses:
-            #     self._add_email_analysis_section(doc, email_analyses)
-            #
-            # # Add report analysis section (NEW!)
-            # if report_analyses:
-            #     self._add_report_analysis_section(doc, report_analyses)
+            content_types = [a['content_type'] for a in analyses]
+            type_counts = Counter(content_types)
+
+            WordStyler.apply_body_style(doc, '内容类型分布:', bold_prefix='')
+
+            for content_type, count in type_counts.most_common():
+                percentage = (count / len(analyses)) * 100
+                p = doc.add_paragraph()
+                p.add_run(f'{content_type}: ').bold = True
+                p.add_run(f'{count} ({percentage:.1f}%)')
+                WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+
+            # Add industry sector analysis
+            WordStyler.apply_heading_style(doc, '行业板块分析', level=1, emoji='🏭')
+
+            all_topics = []
+            for analysis in analyses:
+                all_topics.extend(analysis['key_topics'])
+
+            if all_topics:
+                topic_counts = Counter(all_topics)
+
+                WordStyler.apply_body_style(doc, '热门行业板块:', bold_prefix='')
+
+                for topic, count in topic_counts.most_common():
+                    percentage = (count / len(analyses)) * 100
+                    p = doc.add_paragraph()
+                    p.add_run(f'{topic}: ').bold = True
+                    p.add_run(f'{count} 次提及 ({percentage:.1f}%)')
+                    WordStyler.set_spacing(p, line_spacing=config.LINE_SPACING)
+
+            # Add email analysis section
+            if email_analyses:
+                self._add_email_analysis_section(doc, email_analyses)
+
+            # Add report analysis section (NEW!)
+            if report_analyses:
+                self._add_report_analysis_section(doc, report_analyses)
 
             # Add key trends
             WordStyler.apply_heading_style(doc, '关键趋势和观察', level=1, emoji='📈')
@@ -368,27 +435,22 @@ class WeeklyReportGenerator:
                 run.font.size = Pt(config.FONT_SIZE_BODY)
                 WordStyler.set_spacing(p, line_spacing=1.0, before=Pt(3), after=Pt(6))
 
-            # Add appendix
+            # Add appendix - COMPACT single paragraph format
             WordStyler.apply_heading_style(doc, '附录', level=1, emoji='📎')
-            # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
 
-            # Add charts section (Phase 3: Visualization) - DISABLED for page count control
-            # if self.enable_charts:
-            #     charts_section = self._add_charts_section(doc, analyses, market_overview, max_charts=2)
+            # Combine all appendix info into a single compact paragraph
+            report_date = datetime.now().strftime('%Y-%m-%d')
+            report_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            ai_notice = 'AI 分析: 本报告内容部分由 DeepSeek AI 生成' if (self.use_llm and self.llm_client) else ''
 
-            WordStyler.apply_body_style(doc, '数据来源:', bold_prefix='')
-            WordStyler.apply_body_style(doc, '主要数据来源: PitchBook 订阅邮件', bold_prefix='')
-            WordStyler.apply_body_style(doc, f'处理周期: {datetime.now().strftime("%Y-%m-%d")}', bold_prefix='')
+            appendix_text = f"""数据来源: PitchBook 订阅邮件 | 处理周期: {report_date} | 生成时间: {report_time} | 报告版本: v4.1 (专业格式) | {ai_notice}"""
 
-            # WordStyler.add_section_divider(doc)  # Removed to reduce whitespace
-
-            WordStyler.apply_body_style(doc, '报告生成信息:', bold_prefix='')
-            WordStyler.apply_body_style(doc, f'生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', bold_prefix='')
-            WordStyler.apply_body_style(doc, '报告版本: v4.1 (专业格式 + 猫背景)', bold_prefix='')
-
-            # Add DeepSeek attribution if LLM was used
-            if self.use_llm and self.llm_client:
-                WordStyler.apply_body_style(doc, 'AI 分析: 本报告内容部分由 DeepSeek AI 生成', bold_prefix='')
+            p = doc.add_paragraph(appendix_text)
+            WordStyler.set_spacing(p, line_spacing=1.0, before=Pt(0), after=Pt(0))
+            run = p.runs[0]
+            run.font.name = config.FONT_BODY
+            run.font.size = Pt(9)  # Smaller font for appendix
+            run.font.color.rgb = RGBColor(128, 128, 128)  # Gray color
 
             # 保存文档
             if output_path is None:
@@ -399,12 +461,49 @@ class WeeklyReportGenerator:
                     f'VC_PE_Weekly_AI分析_{datetime.now().strftime("%Y%m%d_%H%M%S")}{suffix}.docx'
                 )
 
+            # Word count validation (require 1500-2000 Chinese characters)
+            def _count_chinese_chars(text):
+                """统计中文字数"""
+                import re
+                chinese_chars = re.findall(r'[\u4e00-\u9fff]', text)
+                return len(chinese_chars)
+
+            # Count words in document
+            total_text = '\n'.join(p.text for p in doc.paragraphs)
+            word_count = _count_chinese_chars(total_text)
+            logger.info(f"报告字数统计: {word_count} 字")
+
+            if word_count < 1500:
+                logger.warning(f"⚠️ 报告字数不足！当前{word_count}字，要求1500-2000字")
+            elif word_count > 2500:
+                logger.info(f"ℹ️ 报告字数较多：{word_count}字，目标1500-2000字")
+            else:
+                logger.info(f"✓ 报告字数符合要求：{word_count}字（目标1500-2000字）")
+
+            # CRITICAL: Clear all page break settings from all paragraphs before saving
+            # This ensures no unwanted page breaks in the final document
+            from docx.oxml.ns import qn
+            for paragraph in doc.paragraphs:
+                pPr = paragraph._element.pPr if hasattr(paragraph._element, 'pPr') else None
+                if pPr is not None:
+                    # Remove ALL page break related elements
+                    for elem in pPr.findall(qn('w:pageBreakBefore')):
+                        pPr.remove(elem)
+                    for elem in pPr.findall(qn('w:keepNext')):
+                        pPr.remove(elem)
+                    for elem in pPr.findall(qn('w:keepWith')):
+                        pPr.remove(elem)
+                    for elem in pPr.findall(qn('w:widowControl')):
+                        pPr.remove(elem)
+
             doc.save(output_path)
             logger.info(f"Weekly report saved to: {output_path}")
             return output_path
 
         except Exception as e:
-            logger.error(f"Failed to generate weekly report: {str(e)}")
+            logger.error(f"Failed to generate weekly report: {str(e)}", exc_info=True)
+            import traceback
+            traceback.print_exc()
             return None
 
     def generate_word_report(self, analyses, market_overview):
@@ -425,15 +524,15 @@ class WeeklyReportGenerator:
 
                 if result['success']:
                     logger.info("✓ Executive summary generated by LLM")
-                    content = clean_llm_content(result['content'])
-                    logger.info(f"[DEBUG] Cleaned content length: {len(content)} chars")
+                    # Extract text from JSON if needed
+                    content = extract_text_from_json(result['content'])
+                    logger.info(f"[DEBUG] Extracted content length: {len(content)} chars")
                     return content
                 else:
                     logger.warning(f"LLM generation failed: {result.get('error')}, falling back to template")
             except Exception as e:
                 logger.warning(f"LLM error: {e}, falling back to template")
-                import traceback
-                traceback.print_exc()
+                logger.debug(f"LLM exception details: {e}", exc_info=True)
 
         # Fallback to template
         logger.info("Using template for executive summary")
@@ -478,7 +577,7 @@ class WeeklyReportGenerator:
 
                 if result['success']:
                     logger.info("✓ Key trends generated by LLM")
-                    return clean_llm_content(result['content'])
+                    return extract_text_from_json(result['content'])
                 else:
                     logger.warning(f"LLM generation failed: {result.get('error')}, falling back to template")
             except Exception as e:
@@ -550,7 +649,7 @@ class WeeklyReportGenerator:
 
                 if result['success']:
                     logger.info("✓ Recommendations generated by LLM")
-                    return clean_llm_content(result['content'])
+                    return extract_text_from_json(result['content'])
                 else:
                     logger.warning(f"LLM generation failed: {result.get('error')}, falling back to template")
             except Exception as e:
@@ -601,7 +700,7 @@ class WeeklyReportGenerator:
 
     def _generate_full_article(self, analyses, market_overview):
         """
-        Generate complete 3000+ word article using LLM
+        Generate complete 2000+ word article using LLM
 
         Args:
             analyses: List of analysis results
@@ -615,7 +714,7 @@ class WeeklyReportGenerator:
             return None
 
         try:
-            logger.info("Using LLM to generate full 3000+ word article...")
+            logger.info("Using LLM to generate full 2000+ word article...")
 
             # Prepare weekly data
             weekly_data = {
@@ -632,20 +731,18 @@ class WeeklyReportGenerator:
                 logger.info(f"✓ Full article generated ({word_count} chars)")
 
                 # Warn if article is too short
-                if word_count < 2000:
-                    logger.warning(f"Article is shorter than expected: {word_count} chars (target: 3000+)")
-                elif word_count >= 3000:
-                    logger.info(f"✓ Article meets 3000+ word requirement: {word_count} chars")
+                if word_count < 1500:
+                    logger.warning(f"Article is shorter than expected: {word_count} chars (target: 2000+)")
+                elif word_count >= 2000:
+                    logger.info(f"✓ Article meets 2000+ word requirement: {word_count} chars")
 
-                return clean_llm_content(result['content'])
+                return extract_text_from_json(result['content'])
             else:
                 logger.error(f"Failed to generate full article: {result.get('error')}")
                 return None
 
         except Exception as e:
-            logger.error(f"Error generating full article: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Error generating full article: {e}", exc_info=True)
             return None
 
     def _sentiment_chinese(self, sentiment):

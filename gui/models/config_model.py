@@ -60,12 +60,12 @@ class AnalysisConfig:
     enable_llm: bool = False
     enable_charts: bool = True
     generate_pdf: bool = False
-    report_format: str = "word"  # word, pdf
+    report_format: str = "word"  # word, pdf, both
 
     def validate(self) -> tuple[bool, str]:
         """验证配置"""
-        if self.report_format not in ["word", "pdf"]:
-            return False, "报告格式只能是 word 或 pdf"
+        if self.report_format not in ["word", "pdf", "both"]:
+            return False, "报告格式只能是 word、pdf 或 both"
         if self.enable_llm and not self.enable_nlp:
             return False, "启用 LLM 需要同时启用 NLP"
         return True, ""

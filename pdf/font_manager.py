@@ -91,8 +91,10 @@ class FontManager:
                     except Exception as e:
                         logger.warning(f"Failed to register {font_name}: {e}")
 
-        # Set default fonts
-        if 'SimHei' in self.registered_fonts:
+        # Set default fonts (使用宋体作为正文字体)
+        if 'SimSun' in self.registered_fonts:
+            self.default_font = 'SimSun'
+        elif 'SimHei' in self.registered_fonts:
             self.default_font = 'SimHei'
         elif 'Microsoft YaHei' in self.registered_fonts:
             self.default_font = 'Microsoft YaHei'
@@ -106,13 +108,15 @@ class FontManager:
             else:
                 logger.error("No Chinese fonts registered! PDF may not display Chinese text correctly.")
 
-        # Set bold font
-        if 'Microsoft YaHei Bold' in self.registered_fonts:
+        # Set bold font (使用黑体作为粗体字体)
+        if 'SimHei' in self.registered_fonts:
+            self.bold_font = 'SimHei'
+        elif 'Microsoft YaHei Bold' in self.registered_fonts:
             self.bold_font = 'Microsoft YaHei Bold'
         elif self.default_font:
             self.bold_font = self.default_font
 
-        # Set title font (prefer bold)
+        # Set title font (使用黑体作为标题字体)
         self.title_font = self.bold_font or self.default_font
 
         success = registered_count > 0

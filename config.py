@@ -79,7 +79,7 @@ LLM_TIMEOUT = int(os.getenv('DEEPSEEK_TIMEOUT', '30'))  # 超时时间（秒）
 LLM_TEMPERATURE = float(os.getenv('DEEPSEEK_TEMPERATURE', '0.3'))  # 采样温度
 LLM_MAX_TOKENS = int(os.getenv('DEEPSEEK_MAX_TOKENS', '3000'))  # 默认token限制
 LLM_MAX_TOKENS_LONG = int(os.getenv('DEEPSEEK_MAX_TOKENS_LONG', '6000'))  # 长报告token限制
-LLM_MAX_TOKENS_EXECUTIVE = int(os.getenv('DEEPSEEK_MAX_TOKENS_EXECUTIVE', '4000'))  # 执行摘要token限制 (2000字)
+LLM_MAX_TOKENS_EXECUTIVE = int(os.getenv('DEEPSEEK_MAX_TOKENS_EXECUTIVE', '4000'))  # 执行摘要token限制 (目标1500-2000字中文)
 
 # ================= Professional Formatting Configuration =================
 
@@ -92,11 +92,11 @@ MARGIN_RIGHT_CM = 2.0
 # Template Path
 CAT_BACKGROUND_TEMPLATE = r'D:\模拟c盘\猫通用背景板.docx'
 
-# Typography - Microsoft YaHei Focus
-FONT_MAIN_TITLE = '微软雅黑'
-FONT_HEADING1 = '微软雅黑'
-FONT_HEADING2 = '微软雅黑'
-FONT_BODY = '微软雅黑'
+# Typography - 标题使用黑体，正文使用宋体
+FONT_MAIN_TITLE = '黑体'      # 标题使用黑体
+FONT_HEADING1 = '黑体'        # 一级标题使用黑体
+FONT_HEADING2 = '黑体'        # 二级标题使用黑体
+FONT_BODY = '宋体'            # 正文使用宋体
 FONT_DATA = '等线'
 
 # Font Sizes (points)
@@ -119,6 +119,14 @@ LINE_SPACING = 1.0               # 1.0x line spacing (compact to reduce whitespa
 SPACING_BEFORE_PARA = 0.5        # lines
 SPACING_AFTER_PARA = 0.5         # lines
 FIRST_LINE_INDENT_CHARS = 2      # 2 characters
+
+# Heading Spacing (points) - Compact spacing to reduce whitespace
+HEADING1_BEFORE_PT = 4           # Reduced from 6pt
+HEADING1_AFTER_PT = 2            # Reduced from 3pt
+HEADING2_BEFORE_PT = 3           # Reduced from 4pt
+HEADING2_AFTER_PT = 2            # Reduced from 2pt
+BODY_BEFORE_PT = 0               # No space before body paragraphs
+BODY_AFTER_PT = 0                # No space after body paragraphs
 
 # Background Settings
 BACKGROUND_TRANSPARENCY = 0.6    # 50-70%

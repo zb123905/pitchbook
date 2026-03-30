@@ -131,9 +131,48 @@ class WordStyler:
         return p
 
     @staticmethod
+    def clear_page_break_settings(paragraph):
+        """
+        Clear paragraph page break settings that cause excessive whitespace
+
+        This removes:
+        - pageBreakBefore (段前分页)
+        - keepWithNext (与下段同页)
+        - keepNext (与下段保持)
+        - widowControl (孤行控制)
+
+        Args:
+            paragraph: Paragraph object to clear settings from
+        """
+        pPr = paragraph._element.get_or_add_pPr()
+
+        # Remove ALL pageBreakBefore elements (completely delete, don't set to 0)
+        for elem in pPr.findall(qn('w:pageBreakBefore')):
+            pPr.remove(elem)
+
+        # Remove keepWith
+        for elem in pPr.findall(qn('w:keepWith')):
+            pPr.remove(elem)
+
+        # Remove keepNext
+        for elem in pPr.findall(qn('w:keepNext')):
+            pPr.remove(elem)
+
+        # Remove widowControl (note: uses w: prefix)
+        for elem in pPr.findall(qn('w:widowControl')):
+            pPr.remove(elem)
+
+        # Also remove keepNext (alternative spelling)
+        for elem in pPr.findall(qn('w:keepNext')):
+            pPr.remove(elem)
+
+    @staticmethod
     def apply_heading_style(doc, text: str, level: int, emoji: str = '') -> None:
         """
         Apply consistent heading style with optional emoji
+
+        Uses custom paragraph instead of doc.add_heading to avoid Word built-in
+        style page break settings that cause excessive whitespace.
 
         Args:
             doc: Document object
@@ -141,46 +180,66 @@ class WordStyler:
             level: Heading level (1, 2, or 3)
             emoji: Optional emoji prefix (single character recommended)
         """
-        heading = doc.add_heading(f'{emoji} {text}' if emoji else text, level=level)
+        # Create custom paragraph instead of using doc.add_heading
+        # This avoids Word's built-in Heading style with page break settings
+        heading = doc.add_paragraph()
+        run = heading.add_run(f'{emoji} {text}' if emoji else text)
 
         # Apply style based on level
         if level == 1:
             WordStyler.set_font(
-                heading.runs[0],
+                run,
                 config.FONT_HEADING1,
                 config.FONT_SIZE_HEADING1,
                 bold=True,
                 color=config.COLOR_ACCENT_BLUE
             )
+            # Clear any page break settings and set compact spacing
+            WordStyler.clear_page_break_settings(heading)
+            WordStyler.set_spacing(
+                heading,
+                line_spacing=1.0,
+                before=Pt(4),          # Reduced from 6pt to 4pt
+                after=Pt(2)            # Reduced from 3pt to 2pt
+            )
         elif level == 2:
             WordStyler.set_font(
-                heading.runs[0],
+                run,
                 config.FONT_HEADING2,
                 config.FONT_SIZE_HEADING2,
                 bold=True,
                 color=config.COLOR_TEXT_DARK
             )
+            WordStyler.clear_page_break_settings(heading)
+            WordStyler.set_spacing(
+                heading,
+                line_spacing=1.0,
+                before=Pt(3),          # Reduced from 4pt to 3pt
+                after=Pt(2)
+            )
         else:  # level 3
             WordStyler.set_font(
-                heading.runs[0],
+                run,
                 config.FONT_BODY,
                 config.FONT_SIZE_BODY,
                 bold=True,
                 color=config.COLOR_TEXT_DARK
             )
-
-        # Set spacing (compact to reduce whitespace)
-        WordStyler.set_spacing(
-            heading,
-            line_spacing=1.0,      # Changed from config.LINE_SPACING (1.2) to 1.0
-            before=Pt(6),          # Reduced from 12pt to 6pt
-            after=Pt(3)            # Reduced from 6pt to 3pt
-        )
+            WordStyler.clear_page_break_settings(heading)
+            WordStyler.set_spacing(
+                heading,
+                line_spacing=1.0,
+                before=Pt(2),
+                after=Pt(1)
+            )
 
     @staticmethod
     def apply_compact_heading_style(doc, text: str, level: int, emoji: str = '') -> None:
         """
         Apply compact heading style for article sections (less spacing)
+
+        Uses custom paragraph instead of doc.add_heading to avoid Word built-in
+        style page break settings.
 
         Args:
             doc: Document object
@@ -188,41 +247,56 @@ class WordStyler:
             level: Heading level (1, 2, or 3)
             emoji: Optional emoji prefix
         """
-        heading = doc.add_heading(f'{emoji} {text}' if emoji else text, level=level)
+        # Create custom paragraph instead of using doc.add_heading
+        heading = doc.add_paragraph()
+        run = heading.add_run(f'{emoji} {text}' if emoji else text)
 
         # Apply style based on level
         if level == 1:
             WordStyler.set_font(
-                heading.runs[0],
+                run,
                 config.FONT_HEADING1,
                 config.FONT_SIZE_HEADING1,
                 bold=True,
                 color=config.COLOR_ACCENT_BLUE
             )
+            WordStyler.clear_page_break_settings(heading)
+            WordStyler.set_spacing(
+                heading,
+                line_spacing=1.0,
+                before=Pt(3),          # Reduced from 4pt
+                after=Pt(1)            # Reduced from 2pt
+            )
         elif level == 2:
             WordStyler.set_font(
-                heading.runs[0],
+                run,
                 config.FONT_HEADING2,
                 config.FONT_SIZE_HEADING2,
                 bold=True,
                 color=config.COLOR_TEXT_DARK
             )
+            WordStyler.clear_page_break_settings(heading)
+            WordStyler.set_spacing(
+                heading,
+                line_spacing=1.0,
+                before=Pt(2),
+                after=Pt(1)
+            )
         else:  # level 3
             WordStyler.set_font(
-                heading.runs[0],
+                run,
                 config.FONT_BODY,
                 config.FONT_SIZE_BODY,
                 bold=True,
                 color=config.COLOR_TEXT_DARK
             )
-
-        # Compact spacing for article content
-        WordStyler.set_spacing(
-            heading,
-            line_spacing=1.0,
-            before=Pt(4),
-            after=Pt(2)
-        )
+            WordStyler.clear_page_break_settings(heading)
+            WordStyler.set_spacing(
+                heading,
+                line_spacing=1.0,
+                before=Pt(1),
+                after=Pt(1)
+            )
 
     @staticmethod
     def apply_body_style(doc, text: str, bold_prefix: str = '',

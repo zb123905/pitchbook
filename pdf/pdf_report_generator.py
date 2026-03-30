@@ -76,10 +76,6 @@ class PDFReportGenerator(WeeklyReportGenerator):
         self.font_manager = get_font_manager()
         self.font_config = self.font_manager.get_font_config()
 
-        # Get font manager
-        self.font_manager = get_font_manager()
-        self.font_config = self.font_manager.get_font_config()
-
         # Initialize chart generator if enabled
         if self.enable_charts:
             try:
@@ -211,21 +207,38 @@ class PDFReportGenerator(WeeklyReportGenerator):
             story.append(PageBreak())
 
             story.extend(self._create_executive_summary(analyses, market_overview))
-            story.append(PageBreak())
+            # Remove unnecessary PageBreak for better content flow
 
             story.extend(self._create_overview_section(analyses, market_overview))
             story.append(PageBreak())
 
             story.extend(self._create_charts_section(analyses))
-            story.append(PageBreak())
+            # Remove unnecessary PageBreak - let content flow naturally
 
             story.extend(self._create_detailed_analysis(analyses))
             story.append(PageBreak())
 
             story.extend(self._create_key_trends(analyses, market_overview))
-            story.append(PageBreak())
+            # Remove unnecessary PageBreak
 
             story.extend(self._create_recommendations(analyses))
+
+            # Word count validation (require 1500-2000 Chinese characters)
+            def _count_chinese_chars(text):
+                """统计中文字数"""
+                import re
+                chinese_chars = re.findall(r'[\u4e00-\u9fff]', text)
+                return len(chinese_chars)
+
+            # Count words from analyses
+            total_text = '\n'.join(str(a) for a in analyses)
+            word_count = _count_chinese_chars(total_text)
+            logger.info(f"PDF报告字数统计: {word_count} 字")
+
+            if word_count < 1500:
+                logger.warning(f"⚠️ PDF报告字数不足！当前{word_count}字，要求1500-2000字")
+            elif word_count > 2500:
+                logger.info(f"ℹ️ PDF报告字数较多：{word_count}字，目标1500-2000字")
 
             # Build PDF with background and footer on all pages
             doc.build(
@@ -310,11 +323,60 @@ class PDFReportGenerator(WeeklyReportGenerator):
         # Generate summary text using parent method
         summary_text = self._generate_executive_summary(analyses, market_overview or {})
 
-        # Convert to paragraphs
-        for line in summary_text.split('\n'):
-            if line.strip():
-                p = Paragraph(line.strip(), self.styles['CustomBody'])
-                story.append(p)
+        # FIX: Clean markdown format before processing
+        from report_generator import clean_llm_content
+        cleaned = clean_llm_content(summary_text)
+
+        # Convert to paragraphs (handle markdown headings properly)
+        import re
+        lines = cleaned.split('\n')
+        current_paragraph = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                # Add accumulated paragraph if any
+                if current_paragraph:
+                    text = ' '.join(current_paragraph)
+                    p = Paragraph(text, self.styles['CustomBody'])
+                    story.append(p)
+                    current_paragraph = []
+                continue
+
+            # Handle markdown headings - more robust detection
+            # Check for heading patterns at start of line (after stripping)
+            # Match: "## Heading", "##Heading", "### Heading", "###Heading"
+            heading_match = re.match(r'^(#{1,3})\s*(.+)$', line)
+
+            if heading_match:
+                # Flush any accumulated paragraph
+                if current_paragraph:
+                    text = ' '.join(current_paragraph)
+                    p = Paragraph(text, self.styles['CustomBody'])
+                    story.append(p)
+                    current_paragraph = []
+
+                # Extract heading text (without # marks)
+                heading_level = len(heading_match.group(1))
+                heading_text = heading_match.group(2).strip()
+
+                # Choose appropriate style based on heading level
+                if heading_level == 1:
+                    h = Paragraph(heading_text, self.styles['CustomHeading1'])
+                elif heading_level == 2:
+                    h = Paragraph(heading_text, self.styles['CustomHeading2'])
+                else:  # heading_level == 3
+                    h = Paragraph(heading_text, self.styles['CustomHeading2'])
+                story.append(h)
+            else:
+                # Regular text - accumulate into paragraph
+                current_paragraph.append(line)
+
+        # Add remaining paragraph
+        if current_paragraph:
+            text = ' '.join(current_paragraph)
+            p = Paragraph(text, self.styles['CustomBody'])
+            story.append(p)
 
         return story
 
@@ -473,42 +535,98 @@ class PDFReportGenerator(WeeklyReportGenerator):
 
                 story.append(Spacer(1, 0.2*inch))
 
-        # NLP enhanced data
-        if any('entities' in a for a in analyses):
+        # NLP/LLM enhanced data - show intelligent analysis results
+        has_llm_deals = any(a.get('llm_investment_deals') for a in analyses)
+        has_entities = any(a.get('entities') for a in analyses)
+
+        if has_llm_deals or has_entities:
             story.append(PageBreak())
             nlp_heading = Paragraph("智能分析结果 (Intelligent Analysis)", self.styles['CustomHeading2'])
             story.append(nlp_heading)
+            story.append(Spacer(1, 0.1*inch))
 
-            # Show deals
-            all_deals = []
+            # Show LLM extracted deals (preferred over NLP deals)
+            all_llm_deals = []
             for analysis in analyses:
-                if 'investment_deals' in analysis:
-                    all_deals.extend(analysis['investment_deals'])
+                if analysis.get('llm_investment_deals'):
+                    all_llm_deals.extend(analysis['llm_investment_deals'])
 
-            if all_deals:
-                for deal in all_deals[:5]:  # Show top 5
-                    deal_text = f"<b>{deal.get('company', 'Unknown')}</b> - {deal.get('stage', 'Unknown Round')}"
+            if all_llm_deals:
+                deals_heading = Paragraph("投资交易 (Investment Deals)", self.styles['CustomHeading2'])
+                story.append(deals_heading)
+                story.append(Spacer(1, 0.1*inch))
+
+                for deal in all_llm_deals[:10]:  # Show up to 10 deals
+                    # Company and stage
+                    company = deal.get('company', 'Unknown Company')
+                    stage = deal.get('stage', deal.get('round', 'Unknown Stage'))
+                    deal_text = f"<b>{company}</b> - {stage}"
                     p = Paragraph(deal_text, self.styles['CustomBody'])
                     story.append(p)
 
+                    # Investors
                     investors = deal.get('investors', [])
                     if investors:
-                        inv_text = f"投资方 (Investors): {', '.join(investors[:3])}"
+                        inv_text = f"投资方: {', '.join(investors[:5])}"
                         p = Paragraph(inv_text, self.styles['CustomBody'])
                         story.append(p)
 
-                    amount = deal.get('amount', {})
-                    if amount and amount.get('amount'):
-                        amt_text = f"金额 (Amount): {amount.get('normalized', 'N/A')}"
+                    # Amount
+                    amount = deal.get('amount')
+                    if amount:
+                        amt_text = f"金额: {amount}"
                         p = Paragraph(amt_text, self.styles['CustomBody'])
                         story.append(p)
 
+                    # Valuation
+                    valuation = deal.get('valuation')
+                    if valuation:
+                        val_text = f"估值: {valuation}"
+                        p = Paragraph(val_text, self.styles['CustomBody'])
+                        story.append(p)
+
                     story.append(Spacer(1, 0.1*inch))
+
+            # Show NLP extracted entities (companies and amounts)
+            if has_entities:
+                all_companies = []
+                all_amounts = []
+
+                for analysis in analyses:
+                    entities = analysis.get('entities', {})
+                    if entities.get('companies'):
+                        all_companies.extend(entities['companies'])
+                    if entities.get('amounts'):
+                        all_amounts.extend(entities['amounts'][:5])  # Limit per analysis
+
+                # Show unique companies
+                if all_companies:
+                    story.append(Spacer(1, 0.2*inch))
+                    comp_heading = Paragraph("识别到的公司 (Identified Companies)", self.styles['CustomHeading2'])
+                    story.append(comp_heading)
+
+                    # Get unique companies
+                    unique_companies = list(set(all_companies))[:20]
+                    for company in unique_companies:
+                        p = Paragraph(f"• {company}", self.styles['CustomBody'])
+                        story.append(p)
+
+                # Show extracted amounts
+                if all_amounts:
+                    story.append(Spacer(1, 0.2*inch))
+                    amt_heading = Paragraph("识别到的金额 (Identified Amounts)", self.styles['CustomHeading2'])
+                    story.append(amt_heading)
+
+                    for amount in all_amounts[:15]:  # Show up to 15 amounts
+                        normalized = amount.get('normalized', amount.get('original_text', 'N/A'))
+                        p = Paragraph(f"• {normalized}", self.styles['CustomBody'])
+                        story.append(p)
 
         return story
 
     def _create_key_trends(self, analyses: List[Dict], market_overview: Optional[Dict]) -> List:
         """Create key trends section"""
+        import re
         story = []
 
         heading = Paragraph("关键趋势和观察 (Key Trends and Observations)", self.styles['CustomHeading1'])
@@ -518,19 +636,58 @@ class PDFReportGenerator(WeeklyReportGenerator):
         # Generate trends using parent method
         trends_text = self._generate_key_trends(analyses, market_overview or {})
 
-        for line in trends_text.split('\n'):
-            if line.strip():
-                if line.strip().startswith('**') and line.strip().endswith('**'):
-                    title_text = line.strip().replace('**', '')
-                    p = Paragraph(title_text, self.styles['CustomHeading2'])
-                else:
-                    p = Paragraph(line.strip().lstrip(), self.styles['CustomBody'])
-                story.append(p)
+        # Clean markdown format
+        from report_generator import clean_llm_content
+        cleaned = clean_llm_content(trends_text)
+
+        # Process each line
+        lines = cleaned.split('\n')
+        current_paragraph = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                if current_paragraph:
+                    text = ' '.join(current_paragraph)
+                    p = Paragraph(text, self.styles['CustomBody'])
+                    story.append(p)
+                    current_paragraph = []
+                continue
+
+            # Handle markdown headings
+            heading_match = re.match(r'^(#{1,3})\s*(.+)$', line)
+            if heading_match:
+                if current_paragraph:
+                    text = ' '.join(current_paragraph)
+                    p = Paragraph(text, self.styles['CustomBody'])
+                    story.append(p)
+                    current_paragraph = []
+                heading_text = heading_match.group(2).strip()
+                h = Paragraph(heading_text, self.styles['CustomHeading2'])
+                story.append(h)
+            # Handle numbered list items (1. 2. 3. etc.)
+            elif re.match(r'^\d+\.?\s+', line):
+                if current_paragraph:
+                    text = ' '.join(current_paragraph)
+                    p = Paragraph(text, self.styles['CustomBody'])
+                    story.append(p)
+                    current_paragraph = []
+                h = Paragraph(line, self.styles['CustomHeading2'])
+                story.append(h)
+            else:
+                current_paragraph.append(line)
+
+        if current_paragraph:
+            text = ' '.join(current_paragraph)
+            p = Paragraph(text, self.styles['CustomBody'])
+            story.append(p)
 
         return story
 
     def _create_recommendations(self, analyses: List[Dict]) -> List:
         """Create recommendations section"""
+        import re
+        from report_generator import clean_llm_content
         story = []
 
         heading = Paragraph("市场观察和建议 (Market Observations and Recommendations)", self.styles['CustomHeading1'])
@@ -540,13 +697,50 @@ class PDFReportGenerator(WeeklyReportGenerator):
         # Generate recommendations using parent method
         rec_text = self._generate_recommendations(analyses)
 
-        for line in rec_text.split('\n'):
-            if line.strip():
-                if line.strip().startswith(('1. ', '2. ', '3. ', '4. ')):
-                    p = Paragraph(line.strip(), self.styles['CustomHeading2'])
-                else:
-                    p = Paragraph(line.strip().lstrip(), self.styles['CustomBody'])
-                story.append(p)
+        # FIX: Clean markdown format first
+        cleaned = clean_llm_content(rec_text)
+
+        # Convert to paragraphs with proper heading detection
+        lines = cleaned.split('\n')
+        current_paragraph = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                if current_paragraph:
+                    text = ' '.join(current_paragraph)
+                    p = Paragraph(text, self.styles['CustomBody'])
+                    story.append(p)
+                    current_paragraph = []
+                continue
+
+            # Handle markdown headings
+            heading_match = re.match(r'^(#{1,3})\s*(.+)$', line)
+            if heading_match:
+                if current_paragraph:
+                    text = ' '.join(current_paragraph)
+                    p = Paragraph(text, self.styles['CustomBody'])
+                    story.append(p)
+                    current_paragraph = []
+                heading_text = heading_match.group(2).strip()
+                h = Paragraph(heading_text, self.styles['CustomHeading2'])
+                story.append(h)
+            # Handle numbered list items (1. 2. 3. etc.)
+            elif re.match(r'^\d+\.?\s+', line):
+                if current_paragraph:
+                    text = ' '.join(current_paragraph)
+                    p = Paragraph(text, self.styles['CustomBody'])
+                    story.append(p)
+                    current_paragraph = []
+                h = Paragraph(line, self.styles['CustomHeading2'])
+                story.append(h)
+            else:
+                current_paragraph.append(line)
+
+        if current_paragraph:
+            text = ' '.join(current_paragraph)
+            p = Paragraph(text, self.styles['CustomBody'])
+            story.append(p)
 
         # Appendix
         story.append(PageBreak())
@@ -589,10 +783,13 @@ class PDFReportGenerator(WeeklyReportGenerator):
         canvas.saveState()
 
         # Footer line using config divider color
+        # A4 width: 8.27 inches, margins in cm need conversion to inches: cm / 2.54
         divider_color = PDFStyler.get_color(config.COLOR_DIVIDER)
         canvas.setStrokeColor(divider_color)
-        canvas.line(config.MARGIN_LEFT_CM * inch/2.54, 0.5*inch,
-                   (8.27 - config.MARGIN_RIGHT_CM) * inch, 0.5*inch)
+        # Line from left margin to right margin
+        x_start = config.MARGIN_LEFT_CM / 2.54 * inch
+        x_end = (8.27 - config.MARGIN_RIGHT_CM / 2.54) * inch
+        canvas.line(x_start, 0.5*inch, x_end, 0.5*inch)
 
         # Page number
         page_num = canvas.getPageNumber()
@@ -603,7 +800,7 @@ class PDFReportGenerator(WeeklyReportGenerator):
         # Use config text dark color
         text_color = PDFStyler.get_color(config.COLOR_TEXT_DARK)
         canvas.setFillColor(text_color)
-        canvas.drawString(config.MARGIN_LEFT_CM * inch/2.54, 0.35*inch, footer_text)
+        canvas.drawString(config.MARGIN_LEFT_CM / 2.54 * inch, 0.35*inch, footer_text)
 
         # Restore state
         canvas.restoreState()
@@ -657,10 +854,14 @@ class PDFReportGenerator(WeeklyReportGenerator):
                     canvas.setFillAlpha(config.CONTENT_OVERLAY_TRANSPARENCY)
 
                     # Calculate content area (within margins)
-                    left = config.MARGIN_LEFT_CM * inch / 2.54
-                    bottom = config.MARGIN_BOTTOM_CM * inch / 2.54
-                    width = (8.27 - config.MARGIN_LEFT_CM - config.MARGIN_RIGHT_CM) * inch / 2.54
-                    height = (11.69 - config.MARGIN_TOP_CM - config.MARGIN_BOTTOM_CM) * inch / 2.54
+                    # A4 size: 8.27 x 11.69 inches
+                    # Margins are in cm, convert to inches: cm / 2.54
+                    left = config.MARGIN_LEFT_CM / 2.54 * inch
+                    bottom = config.MARGIN_BOTTOM_CM / 2.54 * inch
+                    # Content width = page width - left margin - right margin
+                    width = (8.27 - config.MARGIN_LEFT_CM / 2.54 - config.MARGIN_RIGHT_CM / 2.54) * inch
+                    # Content height = page height - top margin - bottom margin
+                    height = (11.69 - config.MARGIN_TOP_CM / 2.54 - config.MARGIN_BOTTOM_CM / 2.54) * inch
 
                     canvas.setFillColor(colors.white)
                     canvas.rect(left, bottom, width, height, fill=1, stroke=0)

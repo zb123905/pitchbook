@@ -426,30 +426,22 @@ class PipelineWorker:
 
         analyzer = VCPEContentAnalyzer(use_llm=self.config.analysis.enable_llm)
 
-        # Analyze emails with progress updates
+        # Analyze emails using analyze_batch method
         email_count = len(processed_emails)
         self._log("INFO", f"🔍 开始分析 {email_count} 封邮件...")
 
+        if self._check_stop():
+            raise Exception("用户取消操作")
+
+        self._update_progress(6, "running", f"正在分析 {email_count} 封邮件...")
+
         email_analyses = []
-        for idx, email in enumerate(processed_emails, 1):
-            if self._check_stop():
-                raise Exception("用户取消操作")
-
-            subject = email.get('subject', 'Unknown')[:30]
-            self._update_progress(
-                6, "running",
-                f"正在分析邮件 {idx}/{email_count}: {subject}..."
-            )
-
-            try:
-                analysis = analyzer.analyze_email(email)
-                if analysis:
-                    email_analyses.append(analysis)
-                    self._log("DEBUG", f"   ✅ [{idx}/{email_count}] {subject}")
-            except Exception as e:
-                self._log("DEBUG", f"   ❌ [{idx}/{email_count}] 分析失败: {e}")
-
-        self._log("INFO", f"✅ 邮件分析: {len(email_analyses)} 封")
+        try:
+            email_analyses = analyzer.analyze_batch(processed_emails)
+            self._log("INFO", f"✅ 邮件分析: {len(email_analyses)} 封")
+        except Exception as e:
+            self._log("ERROR", f"邮件批量分析失败: {e}")
+            email_analyses = []
 
         report_analyses = []
         if downloaded_reports:
@@ -472,48 +464,72 @@ class PipelineWorker:
         self._update_progress(6, "success", f"分析 {len(all_analyses)} 个项目")
         self._update_stats(results)
 
+        # Empty result warning mechanism
+        if len(all_analyses) == 0:
+            self._log("WARNING", "⚠️ 警告: 没有成功分析任何内容！")
+            self._log("WARNING", "⚠️ 报告将不包含任何实际数据")
+
         # ================= 步骤7：生成报告 =================
         if self._check_stop():
             raise Exception("用户取消操作")
 
-        generate_pdf = self.config.analysis.generate_pdf
-        report_type = "PDF" if generate_pdf else "Word"
+        report_format = self.config.analysis.report_format
+        generate_both = report_format == "both"
+        generate_pdf = self.config.analysis.generate_pdf or generate_both
 
-        self._update_progress(7, "running", f"正在生成 {report_type} 报告...")
+        self._update_progress(7, "running", "正在生成报告...")
 
         try:
+            output_files = []
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            # 生成 Word 报告（如果需要）
+            if report_format in ["word", "both"]:
+                self._update_progress(7, "running", "正在生成 Word 报告...")
+                word_generator = WeeklyReportGenerator()
+                word_output = os.path.join(
+                    config.SUMMARY_REPORT_DIR,
+                    f'VC_PE_Weekly_AI分析_{timestamp}.docx'
+                )
+                word_generator.generate_weekly_report(all_analyses, word_output, market_overview)
+                output_files.append(("Word", word_output))
+                self._log("INFO", f"✅ Word 报告已生成: {word_output}")
+
+            # 生成 PDF 报告（如果需要）
             if generate_pdf:
+                self._update_progress(7, "running", "正在生成 PDF 报告...")
                 try:
                     from pdf.pdf_report_generator import PDFReportGenerator
-                    generator = PDFReportGenerator(enable_charts=self.config.analysis.enable_charts)
-                    output_dir = config.PDF_REPORT_DIR
-                    file_ext = 'pdf'
-                except ImportError:
-                    self._log("WARNING", "PDF 报告生成器不可用，回退到 Word")
-                    generate_pdf = False
+                    pdf_generator = PDFReportGenerator(
+                        enable_charts=self.config.analysis.enable_charts,
+                        use_llm=self.config.analysis.enable_llm,
+                        use_template=False
+                    )
+                    pdf_output = os.path.join(
+                        config.PDF_REPORT_DIR,
+                        f'VC_PE_Weekly_AI分析_{timestamp}.pdf'
+                    )
+                    result = pdf_generator.generate_weekly_report(all_analyses, pdf_output, market_overview)
+                    if result and os.path.exists(pdf_output):
+                        output_files.append(("PDF", pdf_output))
+                        self._log("INFO", f"✅ PDF 报告已生成: {pdf_output}")
+                    else:
+                        self._log("WARNING", "PDF 报告生成失败（分析结果为空或生成器返回None）")
+                except ImportError as e:
+                    self._log("WARNING", f"PDF 报告生成器不可用: {e}")
 
-            if not generate_pdf:
-                generator = WeeklyReportGenerator()
-                output_dir = config.SUMMARY_REPORT_DIR
-                file_ext = 'docx'
-                report_type = "Word"
+            # 更新结果
+            results['output_files'] = output_files
+            results['report_formats'] = [f[0] for f in output_files]
 
-            output_path = os.path.join(
-                output_dir,
-                f'VC_PE_Weekly_AI分析_{datetime.now().strftime("%Y%m%d_%H%M%S")}.{file_ext}'
-            )
+            if len(output_files) == 1:
+                results['output_file'] = output_files[0][1]
+                results['report_type'] = output_files[0][0]
 
-            generator.generate_weekly_report(all_analyses, output_path, market_overview)
+            file_count = len(output_files)
+            total_size = sum(os.path.getsize(f[1]) for f in output_files if os.path.exists(f[1])) / 1024
 
-            results['output_file'] = output_path
-            results['report_type'] = report_type
-
-            file_size = os.path.getsize(output_path)
-            size_kb = file_size / 1024
-
-            self._update_progress(7, "success", f"{report_type} 报告已生成 ({size_kb:.1f} KB)")
-            self._log("INFO", f"✅ {report_type} 报告已生成: {output_path}")
-            self._log("INFO", f"   文件大小: {size_kb:.1f} KB")
+            self._update_progress(7, "success", f"已生成 {file_count} 个报告文件 ({total_size:.1f} KB)")
             self._update_stats(results)
 
         except Exception as e:

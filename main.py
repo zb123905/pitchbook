@@ -397,7 +397,11 @@ async def main():
         # Lazy import PDF generator to avoid circular dependencies
         try:
             from pdf.pdf_report_generator import PDFReportGenerator
-            generator = PDFReportGenerator(enable_charts=True)
+            generator = PDFReportGenerator(
+                enable_charts=True,
+                use_llm=True,  # Enable LLM for PDF content generation
+                use_template=False
+            )
             output_dir = config.PDF_REPORT_DIR
             file_ext = 'pdf'
             report_type = "PDF"

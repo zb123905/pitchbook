@@ -241,18 +241,35 @@ class MainWindow(ctk.CTk):
         self._reset_ui_state()
 
         if success:
-            # 显示成功信息
-            output_file = results.get('output_file')
-            if output_file:
+            # 处理多个输出文件（支持新的 output_files 格式）
+            output_files = results.get('output_files', [])
+
+            # 兼容旧格式（单个文件）
+            if not output_files and results.get('output_file'):
+                output_files = [
+                    (results.get('report_type', '报告'), results.get('output_file'))
+                ]
+
+            if output_files:
+                # 显示成功信息（多个文件）
+                file_count = len(output_files)
+                format_list = ", ".join([f[0] for f in output_files])
+
+                # 格式化文件路径显示
+                if file_count == 1:
+                    file_info = output_files[0][1]
+                else:
+                    file_info = f"{file_count} 个文件 ({format_list})"
+
                 self.info_label.configure(
-                    text=f"✅ 完成！报告已生成: {output_file}",
+                    text=f"✅ 完成！报告已生成: {file_info}",
                     text_color=("#4CAF50", "#4CAF50")
                 )
-                self.log_panel.add_log("INFO", f"✅ 流程完成，报告: {output_file}")
 
-                # 添加到输出面板
-                report_type = results.get('report_type', '报告')
-                self.output_panel.add_output_file(output_file, report_type)
+                # 添加所有文件到输出面板
+                for report_type, filepath in output_files:
+                    self.log_panel.add_log("INFO", f"✅ {report_type} 报告: {filepath}")
+                    self.output_panel.add_output_file(filepath, report_type)
 
                 # 切换到输出标签页
                 self.tab_view.set("输出预览")

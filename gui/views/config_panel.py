@@ -188,8 +188,8 @@ class ConfigPanel(ctk.CTkFrame):
 
         self.format_segmented = ctk.CTkSegmentedButton(
             format_frame,
-            values=["Word", "PDF"],
-            width=200
+            values=["Word", "PDF", "Both"],
+            width=250
         )
         self.format_segmented.pack(side="left", padx=(0, 15))
         self.format_segmented.set("Word")
@@ -265,7 +265,14 @@ class ConfigPanel(ctk.CTkFrame):
         self.llm_switch.select() if self.config.analysis.enable_llm else self.llm_switch.deselect()
         self.charts_switch.select() if self.config.analysis.enable_charts else self.charts_switch.deselect()
 
-        report_format = "PDF" if self.config.analysis.generate_pdf else "Word"
+        # Handle report format: word, pdf, both
+        format_val = self.config.analysis.report_format
+        if format_val == "pdf":
+            report_format = "PDF"
+        elif format_val == "both":
+            report_format = "Both"
+        else:
+            report_format = "Word"
         self.format_segmented.set(report_format)
 
     def _get_config_from_ui(self) -> PipelineConfig:
@@ -299,7 +306,18 @@ class ConfigPanel(ctk.CTkFrame):
         config.analysis.enable_nlp = self.nlp_switch.get() == 1
         config.analysis.enable_llm = self.llm_switch.get() == 1
         config.analysis.enable_charts = self.charts_switch.get() == 1
-        config.analysis.generate_pdf = self.format_segmented.get() == "PDF"
+
+        # Handle report format selection
+        selected_format = self.format_segmented.get()
+        if selected_format == "PDF":
+            config.analysis.generate_pdf = True
+            config.analysis.report_format = "pdf"
+        elif selected_format == "Both":
+            config.analysis.generate_pdf = True
+            config.analysis.report_format = "both"
+        else:  # Word
+            config.analysis.generate_pdf = False
+            config.analysis.report_format = "word"
 
         return config
 
