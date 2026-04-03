@@ -19,17 +19,6 @@ from path_utils import get_resource_path, get_node_executable, get_app_dir
 logger = logging.getLogger(__name__)
 
 
-def _ensure_mcp_server_files(target_dir: str) -> bool:
-    """
-    确保 MCP 服务器文件在目标目录中存在（用于打包环境）
-
-    从 _MEIPASS 复制必要的文件到可写的 exe 目录
-
-    注意：此函数当前未使用，因为改为直接从 _MEIPASS 运行
-    """
-    return True  # 不再需要此函数
-
-
 def _ensure_mcp_env_config(server_dir: str) -> bool:
     """
     确保 MCP 服务器的 .env 配置文件存在
@@ -794,29 +783,11 @@ class MCPClient:
 
     def _parse_email_list(self, content: List[Dict]) -> List[Dict[str, Any]]:
         """解析邮件列表响应"""
-        emails = []
-
-        if not content or not isinstance(content, list):
-            return emails
-
-        text = content[0].get("text", "")
-
-        # 这里需要根据实际的 MCP 服务器响应格式来解析
-        # 暂时返回空列表
-
-        return emails
+        raise NotImplementedError("_parse_email_list is not implemented in this version")
 
     def _parse_email_detail(self, content: List[Dict]) -> Optional[Dict[str, Any]]:
         """解析邮件详情响应"""
-        if not content or not isinstance(content, list):
-            return None
-
-        text = content[0].get("text", "")
-
-        # 这里需要根据实际的 MCP 服务器响应格式来解析
-        # 暂时返回 None
-
-        return None
+        raise NotImplementedError("_parse_email_detail is not implemented in this version")
 
     def disconnect(self):
         """断开连接"""

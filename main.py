@@ -28,7 +28,6 @@ from pdf_converter import PDFConverter
 
 # 导入 PDF 报告生成器 (Phase 1) - Lazy import
 PDF_AVAILABLE = True
-# logger.info("✓ PDF报告生成器可用 (Phase 1)")  # Logger not defined yet
 
 # ================= 日志配置 =================
 logging.basicConfig(
