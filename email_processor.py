@@ -11,6 +11,22 @@ from bs4 import BeautifulSoup
 import requests
 import config
 
+# Database support (optional)
+DATABASE_AVAILABLE = False
+if config.DB_ENABLED:
+    try:
+        from database.base import init_database, get_db_session, is_database_enabled
+        from database.repositories import (
+            EmailRepository, EmailLinkRepository,
+            EmailAttachmentRepository, DownloadedReportRepository
+        )
+        DATABASE_AVAILABLE = True
+        logger = logging.getLogger(__name__)
+        logger.info("Database support enabled")
+    except ImportError as e:
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Database modules not available: {e}")
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -27,12 +43,21 @@ logger = logging.getLogger(__name__)
 class EmailProcessor:
     """Main class for processing PitchBook emails"""
 
-    def __init__(self):
+    def __init__(self, use_database=None):
         self.processed_emails = []
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
+
+        # Database support
+        self.use_database = use_database if use_database is not None else (config.DB_ENABLED and DATABASE_AVAILABLE)
+
+        if self.use_database:
+            logger.info("Database persistence enabled")
+            # Initialize database connection
+            if not is_database_enabled():
+                init_database(config)
 
     def parse_email_file(self, email_file_path):
         """Parse single email file"""
@@ -80,6 +105,9 @@ class EmailProcessor:
             # Extract attachment information
             email_data['attachments'] = self._extract_attachments(msg)
 
+            # Extract structured data (companies, amounts, transaction types, etc.)
+            email_data['structured_data'] = self.extract_structured_data(email_data)
+
             logger.info(f"Successfully parsed email: {email_data['subject']}")
             logger.info(f"Found {len(email_data['links'])} links")
             logger.info(f"Found {len(email_data['attachments'])} attachments")
@@ -109,6 +137,9 @@ class EmailProcessor:
 
             # Extract links
             email_data['links'] = self._extract_links(content)
+
+            # Extract structured data
+            email_data['structured_data'] = self.extract_structured_data(email_data)
 
             logger.info(f"Successfully parsed text email: {email_data['subject'] or 'No subject'}")
             logger.info(f"Found {len(email_data['links'])} links")
@@ -281,10 +312,121 @@ class EmailProcessor:
             return subject_match.group(1).strip()
         return 'No subject'
 
-    def download_report_from_link(self, url, save_dir=None):
-        """Download report file from link"""
+    def extract_structured_data(self, email_data):
+        """
+        从邮件中提取结构化数据（公司、金额、交易类型等）
+
+        Args:
+            email_data: 已解析的邮件数据字典
+
+        Returns:
+            dict: 包含结构化数据的字典
+        """
+        content = (email_data.get('html_body') or email_data.get('body') or '')
+        subject = email_data.get('subject', '')
+
+        structured_data = {
+            'company_names': [],
+            'deal_amounts': [],
+            'transaction_types': [],
+            'industries': [],
+            'key_numbers': [],
+            'titles': []
+        }
+
+        # 1. 提取标题（从邮件主题和正文中）
+        titles = set()
+
+        # 从主题提取
+        if subject:
+            titles.add(subject.strip())
+
+        # 从HTML内容提取标题（h1-h3标签）
+        if '<' in content:
+            try:
+                soup = BeautifulSoup(content, 'html.parser')
+                for tag in soup.find_all(['h1', 'h2', 'h3']):
+                    title_text = tag.get_text(strip=True)
+                    if len(title_text) > 5 and len(title_text) < 200:
+                        titles.add(title_text)
+            except:
+                pass
+
+        structured_data['titles'] = list(titles)
+
+        # 2. 提取公司名称（常见VC/PE公司模式）
+        # 匹配 "Company X raises $Y" 模式
+        company_pattern = r'([A-Z][A-Za-z\s&]+?)(?:\s+(?:raises|raised|secures|secured|announces|acquires|merges with|IPO|files for))'
+        companies = re.findall(company_pattern, content, re.IGNORECASE)
+        structured_data['company_names'] = list(set([c.strip() for c in companies if len(c.strip()) > 2]))
+
+        # 3. 提取交易金额
+        # 匹配 $1M, $100 million, ¥500亿 等模式
+        amount_pattern = r'[$¥€£]([\d.,]+(?:\s*(?:million|billion|b|m|bn|万|亿|万|千))?)'
+        amounts = re.findall(amount_pattern, content, re.IGNORECASE)
+        structured_data['deal_amounts'] = amounts
+
+        # 4. 识别交易类型
+        transaction_keywords = {
+            'VC': ['Series A', 'Series B', 'Series C', 'Seed', 'Angel', 'Venture Capital', 'VC funding'],
+            'PE': ['Private Equity', 'Buyout', 'LBO', 'Leveraged Buyout'],
+            'M&A': ['merger', 'acquisition', 'acquires', 'M&A', 'buyout'],
+            'IPO': ['IPO', 'initial public offering', 'goes public', 'listed'],
+            'Fundraising': ['raises', 'raised', 'secures', 'funding round', 'investment'],
+        }
+
+        content_lower = content.lower()
+        for trans_type, keywords in transaction_keywords.items():
+            if any(keyword.lower() in content_lower for keyword in keywords):
+                structured_data['transaction_types'].append(trans_type)
+
+        # 5. 提取行业关键词
+        industry_keywords = [
+            'fintech', 'healthcare', 'SaaS', 'AI', 'machine learning', 'biotech',
+            'crypto', 'blockchain', 'e-commerce', 'consumer', 'enterprise software',
+            'clean energy', 'edtech', 'proptech', 'insurtech'
+        ]
+
+        for industry in industry_keywords:
+            if industry.lower() in content_lower:
+                structured_data['industries'].append(industry)
+
+        # 6. 提取关键数字（估值、倍数等）
+        # 匹配 "x revenue", "x ARR" 等模式
+        metric_pattern = r'(\d+(?:\.\d+)?)\s*(?:x|times|ARR|revenue|EBITDA|GM|margin)'
+        metrics = re.findall(metric_pattern, content, re.IGNORECASE)
+        structured_data['key_numbers'] = metrics
+
+        # 记录提取的统计信息
+        logger.info(f"提取结构化数据: "
+                   f"{len(structured_data['titles'])} 个标题, "
+                   f"{len(structured_data['company_names'])} 个公司, "
+                   f"{len(structured_data['deal_amounts'])} 个金额, "
+                   f"{len(structured_data['transaction_types'])} 个交易类型")
+
+        return structured_data
+
+    def download_report_from_link(self, url, save_dir=None, use_enhanced=False):
+        """Download report file from link
+
+        Args:
+            url: Report URL
+            save_dir: Directory to save the file (default: config.FILE_DOWNLOAD_DIR)
+            use_enhanced: Use enhanced download service with file type detection and retry
+        """
         if save_dir is None:
-            save_dir = config.DOWNLOADS_DIR
+            save_dir = config.FILE_DOWNLOAD_DIR
+
+        # Use enhanced download service if available and enabled
+        if use_enhanced and config.DB_ENABLED:
+            try:
+                from services.download_service import EnhancedDownloadService
+                service = EnhancedDownloadService()
+                result = service.download_report(url, save_dir)
+                service.close()
+                return result
+            except Exception as e:
+                logger.warning(f"Enhanced download service failed, falling back to default: {e}")
 
         try:
             logger.info(f"Attempting to download: {url}")
@@ -394,3 +536,71 @@ class EmailProcessor:
         except Exception as e:
             logger.error(f"Failed to save email data: {str(e)}")
             return None
+
+    def save_processed_emails_to_db(self, emails=None):
+        """Save processed emails to database"""
+        if not self.use_database:
+            logger.debug("Database persistence disabled")
+            return None
+
+        if emails is None:
+            emails = self.processed_emails
+
+        if not emails:
+            logger.warning("No email data to save to database")
+            return None
+
+        try:
+            saved_count = 0
+
+            with get_db_session() as session:
+                email_repo = EmailRepository(session)
+                link_repo = EmailLinkRepository(session)
+                attachment_repo = EmailAttachmentRepository(session)
+
+                for email_data in emails:
+                    # Check if email already exists
+                    message_id = email_data.get('message_id')
+                    if message_id and email_repo.get_by_message_id(message_id):
+                        logger.debug(f"Email {message_id} already exists, skipping")
+                        continue
+
+                    # Create email record
+                    db_email = email_repo.create(email_data)
+
+                    # Create link records
+                    if email_data.get('links'):
+                        link_repo.create_batch(db_email.id, email_data['links'])
+
+                    # Create attachment records
+                    if email_data.get('attachments'):
+                        for attachment in email_data['attachments']:
+                            attachment_repo.create({
+                                'email_id': db_email.id,
+                                'filename': attachment.get('filename'),
+                                'size': attachment.get('size'),
+                                'content_type': 'application/octet-stream'
+                            })
+
+                    saved_count += 1
+
+            logger.info(f"Saved {saved_count}/{len(emails)} emails to database")
+            return saved_count
+
+        except Exception as e:
+            logger.error(f"Failed to save emails to database: {e}")
+            return None
+
+    def save_to_both(self, emails=None, save_dir=None):
+        """Save to both JSON file and database"""
+        results = {'json': None, 'database': None}
+
+        # Save to JSON
+        if config.KEEP_JSON_BACKUP:
+            results['json'] = self.save_processed_emails(emails, save_dir)
+
+        # Save to database
+        if self.use_database:
+            results['database'] = self.save_processed_emails_to_db(emails)
+
+        return results

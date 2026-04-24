@@ -23,9 +23,6 @@ from email_processor import EmailProcessor
 from report_content_extractor import ReportContentExtractor
 from content_analyzer import VCPEContentAnalyzer
 from report_generator import WeeklyReportGenerator
-from pitchbook_scraper import PitchBookScraper
-from markdown_converter import MarkdownConverter
-from pdf_converter import PDFConverter
 
 
 class PipelineWorker:
@@ -43,7 +40,6 @@ class PipelineWorker:
         "读取PitchBook邮件",
         "提取邮件内容和链接",
         "自动下载报告",
-        "Web爬取内容",
         "提取报告内容",
         "综合分析",
         "生成报告"
@@ -268,6 +264,56 @@ class PipelineWorker:
         self._log("INFO", f"🔗 PitchBook 链接: {len(pitchbook_links)}")
         self._update_stats(results)
 
+        # ================= 步骤3.5：自动发现报告链接 =================
+        discovered_links = []
+        if self.config.download.auto_discover.enable:
+            if self._check_stop():
+                raise Exception("用户取消操作")
+
+            self._update_progress(2, "running", "正在从 PitchBook 官网发现报告链接...")
+            self._log("INFO", "🔍 启用自动发现报告链接功能")
+
+            try:
+                from services.pitchbook_discovery import PitchBookLinkDiscovery
+
+                discovery = PitchBookLinkDiscovery()
+                if discovery.is_available():
+                    self._log("INFO", f"📡 正在搜索报告（最多 {self.config.download.auto_discover.max_links} 个，最近 {self.config.download.auto_discover.recent_days} 天）...")
+
+                    discovered = discovery.discover_report_links(
+                        max_links=self.config.download.auto_discover.max_links,
+                        recent_days=self.config.download.auto_discover.recent_days
+                    )
+
+                    if discovered:
+                        self._log("INFO", f"✅ 发现 {len(discovered)} 个报告链接")
+
+                        # 转换为链接格式并添加到列表
+                        for item in discovered:
+                            discovered_links.append({
+                                'url': item['url'],
+                                'text': item['title'],
+                                'source': 'auto_discovery'
+                            })
+
+                        # 显示前3个发现的链接
+                        for i, link in enumerate(discovered[:3], 1):
+                            title = link.get('title', 'N/A')[:50]
+                            self._log("DEBUG", f"   [{i}] {title}")
+                    else:
+                        self._log("WARNING", "⚠️ 未发现任何报告链接")
+                else:
+                    self._log("WARNING", "⚠️ 链接发现服务不可用")
+            except Exception as e:
+                self._log("ERROR", f"❌ 自动发现失败: {e}")
+
+            # 更新链接统计
+            if discovered_links:
+                pitchbook_links.extend(discovered_links)
+                results['pitchbook_links_count'] = len(pitchbook_links)
+                self._log("INFO", f"🔗 合并后总链接数: {len(pitchbook_links)}")
+                self._update_stats(results)
+
         # ================= 步骤4：自动下载报告 =================
         if self._check_stop():
             raise Exception("用户取消操作")
@@ -275,25 +321,74 @@ class PipelineWorker:
         self._update_progress(3, "running", "正在尝试下载报告...")
 
         downloaded_reports = []
+
+        # 检查是否启用下载
+        enable_download = self.config.download.enable_download
+
         if not pitchbook_links:
             self._update_progress(3, "skipped", "无 PitchBook 链接，跳过下载")
+        elif not enable_download:
+            self._update_progress(3, "skipped", "文件下载已禁用")
+            self._log("INFO", "⏭️ 文件下载已禁用（可在配置中启用）")
         else:
             self._log("INFO", f"📥 开始下载 {len(pitchbook_links)} 个报告...")
+
+            # 检查是否使用 Playwright (已移除，回退到标准下载)
+            use_playwright = False  # Playwright 下载器已移除
+            playwright_downloader = None
+            if use_playwright:
+                try:
+                    from services.playwright_downloader import PlaywrightDownloader
+                    playwright_downloader = PlaywrightDownloader()
+                    if playwright_downloader.is_available():
+                        self._log("INFO", "🎭 使用 Playwright 下载器（绕过 403 错误）")
+                    else:
+                        self._log("WARNING", "⚠️ Playwright 不可用，使用标准下载")
+                except ImportError:
+                    self._log("DEBUG", "Playwright 模块不可用，使用标准下载")
 
             for idx, link in enumerate(pitchbook_links, 1):
                 if self._check_stop():
                     raise Exception("用户取消操作")
 
-                url = link['url']
+                url = link.get('url', '') or ''
+                # 安全地获取链接文本
+                link_text = link.get('text', '') or url[:50] if url else '无效链接'
+                self._log("INFO", f"   [{idx}/{len(pitchbook_links)}] 📥 {link_text}")
+
+                # 跳过无效URL
+                if not url:
+                    self._log("DEBUG", "   ⏭️ 跳过：空URL")
+                    continue
+
                 try:
-                    result = processor.download_report_from_link(url)
+                    result = {'success': False}
+
+                    # Playwright 优先
+                    if use_playwright and playwright_downloader and playwright_downloader.is_available():
+                        self._log("DEBUG", "      🎭 尝试 Playwright 下载...")
+                        playwright_result = playwright_downloader.download_single(url, retries=1)
+
+                        if playwright_result.get('success'):
+                            result = playwright_result
+                            self._log("INFO", "      ✅ Playwright 下载成功！")
+                        else:
+                            error_msg = playwright_result.get('error', '未知')[:50] if playwright_result.get('error') else '未知错误'
+                            self._log("DEBUG", f"      ⚠️ Playwright 失败，回退到标准下载: {error_msg}")
+
+                    # 标准下载（Playwright 未启用、不可用或失败时）
+                    if not result.get('success'):
+                        result = processor.download_report_from_link(url)
+
                     if result.get('success'):
                         downloaded_reports.append(result)
-                        self._log("INFO", f"   ✅ {result['filename']}")
+                        filename = result.get('filename', '未知')
+                        self._log("INFO", f"   ✅ {filename}")
                     else:
                         self._log("DEBUG", f"   ❌ 失败: {result.get('error', '未知错误')}")
+
                 except Exception as e:
-                    self._log("DEBUG", f"下载失败: {e}")
+                    self._log("DEBUG", f"   ❌ 下载异常: {e}")
 
             results['downloaded_count'] = len(downloaded_reports)
             self._update_progress(3, "success", f"下载 {len(downloaded_reports)} 个报告")
@@ -304,102 +399,18 @@ class PipelineWorker:
         if self._check_stop():
             raise Exception("用户取消操作")
 
-        self._update_progress(4, "running", "正在爬取网页内容...")
-
+        # 步骤5已移除（原Web爬取功能）
+        # 爬虫功能已被移除，直接跳过
         scraped_results = []
+        results['scraped_count'] = 0
+        self._update_progress(4, "skipped", "爬虫功能已移除")
+        self._log("INFO", "⏭️ 爬虫功能已移除")
 
-        # 检查是否启用爬虫
-        if not self.config.scraper.enable_scraper:
-            self._update_progress(4, "skipped", "爬虫功能已禁用")
-            self._log("INFO", "⏭️ 爬虫功能已禁用，跳过网页爬取")
-        elif pitchbook_links:
-            max_scrape = self.config.scraper.max_scrape_links
-            date_filter_days = self.config.scraper.date_filter_days
-            start_date, end_date = email_credentials.get_date_range(date_filter_days)
-
-            # 按日期过滤链接
-            links_to_scrape = []
-            for link in pitchbook_links:
-                email_date = link.get('email_date', '')
-                if email_date and email_credentials.is_within_date_range(email_date, start_date, end_date):
-                    links_to_scrape.append(link)
-
-            if max_scrape > 0 and len(links_to_scrape) > max_scrape:
-                links_to_scrape = links_to_scrape[:max_scrape]
-
-            delay_avg = (self.config.scraper.scrape_delay_min + self.config.scraper.scrape_delay_max) / 2
-            estimated_time = len(links_to_scrape) * delay_avg / 60
-
-            self._log("INFO", f"🕷️ 准备爬取 {len(links_to_scrape)} 个网页...")
-            self._log("INFO", f"⏱️ 预计需要 {estimated_time:.1f} 分钟")
-
-            if self.config.scraper.fast_fail:
-                self._log("INFO", f"⚡ 快速失败模式已启用（反爬虫页面将跳过）")
-
-            try:
-                scraper = PitchBookScraper(headless=True, fast_fail=self.config.scraper.fast_fail)
-                if not await scraper.initialize():
-                    self._update_progress(4, "error", "爬虫初始化失败")
-                else:
-                    md_converter = MarkdownConverter()
-                    pdf_converter = PDFConverter()
-
-                    for idx, link in enumerate(links_to_scrape, 1):
-                        if self._check_stop():
-                            await scraper.close()
-                            raise Exception("用户取消操作")
-
-                        url = link['url']
-                        self._log("INFO", f"[{idx}/{len(links_to_scrape)}] 爬取: {url[:70]}...")
-
-                        try:
-                            scraped_data = await scraper.scrape_url(
-                                url,
-                                start_date=start_date,
-                                end_date=end_date
-                            )
-
-                            if scraped_data:
-                                if scraped_data.get('skip_reason'):
-                                    self._log("DEBUG", f"   ⏭️ 跳过: {scraped_data.get('skip_reason')}")
-                                    continue
-
-                                md_path = md_converter.convert(scraped_data)
-                                pdf_path = pdf_converter.convert(scraped_data)
-
-                                scraped_results.append({
-                                    'url': url,
-                                    'title': scraped_data.get('title', ''),
-                                    'markdown_path': md_path,
-                                    'pdf_path': pdf_path,
-                                    'word_count': scraped_data.get('word_count', 0),
-                                })
-
-                                self._log("INFO", f"   ✅ {scraped_data.get('title', 'N/A')[:50]}")
-
-                        except Exception as e:
-                            self._log("DEBUG", f"   ❌ 错误: {e}")
-                            continue
-
-                    await scraper.close()
-
-                    results['scraped_count'] = len(scraped_results)
-                    self._update_progress(4, "success", f"爬取 {len(scraped_results)} 个页面")
-                    self._log("INFO", f"✅ 成功爬取 {len(scraped_results)} 个页面")
-                    self._update_stats(results)
-
-            except Exception as e:
-                if "用户取消" not in str(e):
-                    self._update_progress(4, "error", f"爬取出错: {e}")
-                    self._log("WARNING", f"Web 爬取出错: {e}")
-        else:
-            self._update_progress(4, "skipped", "无 PitchBook 链接")
-
-        # ================= 步骤6：提取报告内容 =================
+        # ================= 步骤4：提取报告内容 =================
         if self._check_stop():
             raise Exception("用户取消操作")
 
-        self._update_progress(5, "running", "正在提取报告内容...")
+        self._update_progress(4, "running", "正在提取报告内容...")
 
         if downloaded_reports:
             extractor = ReportContentExtractor()
@@ -413,16 +424,16 @@ class PipelineWorker:
                     report['extracted_content'] = ""
 
             extracted_count = sum(1 for r in downloaded_reports if r.get('extracted_content'))
-            self._update_progress(5, "success", f"提取 {extracted_count} 个报告内容")
+            self._update_progress(4, "success", f"提取 {extracted_count} 个报告内容")
             self._log("INFO", f"✅ 成功提取 {extracted_count}/{len(downloaded_reports)} 个报告内容")
         else:
-            self._update_progress(5, "skipped", "无下载报告")
+            self._update_progress(4, "skipped", "无下载报告")
 
-        # ================= 步骤6：综合分析 =================
+        # ================= 步骤5：综合分析 =================
         if self._check_stop():
             raise Exception("用户取消操作")
 
-        self._update_progress(6, "running", "正在进行综合分析...")
+        self._update_progress(5, "running", "正在进行综合分析...")
 
         analyzer = VCPEContentAnalyzer(use_llm=self.config.analysis.enable_llm)
 
@@ -433,7 +444,7 @@ class PipelineWorker:
         if self._check_stop():
             raise Exception("用户取消操作")
 
-        self._update_progress(6, "running", f"正在分析 {email_count} 封邮件...")
+        self._update_progress(5, "running", f"正在分析 {email_count} 封邮件...")
 
         email_analyses = []
         try:
@@ -461,7 +472,7 @@ class PipelineWorker:
             self._log("INFO", f"💾 分析结果已保存: {analysis_save_path}")
 
         results['analyzed_count'] = len(all_analyses)
-        self._update_progress(6, "success", f"分析 {len(all_analyses)} 个项目")
+        self._update_progress(5, "success", f"分析 {len(all_analyses)} 个项目")
         self._update_stats(results)
 
         # Empty result warning mechanism
@@ -469,7 +480,7 @@ class PipelineWorker:
             self._log("WARNING", "⚠️ 警告: 没有成功分析任何内容！")
             self._log("WARNING", "⚠️ 报告将不包含任何实际数据")
 
-        # ================= 步骤7：生成报告 =================
+        # ================= 步骤6：生成报告 =================
         if self._check_stop():
             raise Exception("用户取消操作")
 
@@ -477,7 +488,7 @@ class PipelineWorker:
         generate_both = report_format == "both"
         generate_pdf = self.config.analysis.generate_pdf or generate_both
 
-        self._update_progress(7, "running", "正在生成报告...")
+        self._update_progress(5, "running", "正在生成报告...")
 
         try:
             output_files = []
@@ -485,7 +496,7 @@ class PipelineWorker:
 
             # 生成 Word 报告（如果需要）
             if report_format in ["word", "both"]:
-                self._update_progress(7, "running", "正在生成 Word 报告...")
+                self._update_progress(5, "running", "正在生成 Word 报告...")
                 word_generator = WeeklyReportGenerator()
                 word_output = os.path.join(
                     config.SUMMARY_REPORT_DIR,
@@ -497,7 +508,7 @@ class PipelineWorker:
 
             # 生成 PDF 报告（如果需要）
             if generate_pdf:
-                self._update_progress(7, "running", "正在生成 PDF 报告...")
+                self._update_progress(5, "running", "正在生成 PDF 报告...")
                 try:
                     from pdf.pdf_report_generator import PDFReportGenerator
                     pdf_generator = PDFReportGenerator(
@@ -529,12 +540,27 @@ class PipelineWorker:
             file_count = len(output_files)
             total_size = sum(os.path.getsize(f[1]) for f in output_files if os.path.exists(f[1])) / 1024
 
-            self._update_progress(7, "success", f"已生成 {file_count} 个报告文件 ({total_size:.1f} KB)")
+            self._update_progress(5, "success", f"已生成 {file_count} 个报告文件 ({total_size:.1f} KB)")
             self._update_stats(results)
 
         except Exception as e:
-            self._update_progress(7, "error", f"报告生成失败: {e}")
+            self._update_progress(5, "error", f"报告生成失败: {e}")
             raise
+
+        # ================= 直接下载功能已移除 =================
+        # 直接下载功能已从主流程中移除
+        # 请使用 PitchBook 下载面板进行独立下载
+        direct_download_results = {
+            'direct_downloaded_count': 0,
+            'direct_download_errors': 0
+        }
+
+        # 合并结果
+        results['direct_download'] = direct_download_results
+
+        # 更新总下载统计
+        total_downloads = results.get('downloaded_count', 0) + direct_download_results.get('direct_downloaded_count', 0)
+        results['total_downloaded'] = total_downloads
 
         self._results = results
         return results
@@ -547,3 +573,70 @@ class PipelineWorker:
     def stop(self):
         """停止运行"""
         self._running = False
+
+    def _run_direct_download(self) -> int:
+        """运行直接下载脚本，返回成功下载数量"""
+        import subprocess
+        import os
+
+        skill_dir = r"E:\pitch\skills\pitchbook-downloader\package"
+        script_path = os.path.join(skill_dir, "scripts", "download_pitchbook_reports.mjs")
+
+        if not os.path.exists(script_path):
+            self._log("ERROR", f"❌ 直接下载脚本不存在: {script_path}")
+            return 0
+
+        max_count = self.config.download.auto_discover.max_links
+
+        cmd = [
+            "node",
+            script_path,
+            "--listing-url", "https://pitchbook.com/news/reports",
+            "--max-from-listing", str(max_count),
+            "--retries", "2"
+        ]
+
+        self._log("INFO", f"📁 输出目录: {config.FILE_DOWNLOAD_DIR}")
+        self._log("INFO", f"📋 最大下载数量: {max_count}")
+
+        result = subprocess.run(
+            cmd,
+            cwd=skill_dir,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            timeout=300
+        )
+
+        # 输出日志（限制输出行数）
+        if result.stdout:
+            lines = result.stdout.split('\n')[:10]
+            for line in lines:
+                if line.strip() and ('成功' in line or '完成' in line or '报告' in line or '[' in line):
+                    self._log("DEBUG", f"  {line.strip()}")
+
+        if result.stderr:
+            self._log("DEBUG", f"脚本输出: {result.stderr[:200] if result.stderr else ''}")
+
+        return self._count_recent_downloads()
+
+    def _count_recent_downloads(self) -> int:
+        """统计最近下载的文件数量"""
+        from datetime import datetime, timedelta
+
+        download_dir = config.FILE_DOWNLOAD_DIR
+        if not os.path.exists(download_dir):
+            return 0
+
+        now = datetime.now()
+        recent_threshold = now - timedelta(minutes=10)
+
+        count = 0
+        for filename in os.listdir(download_dir):
+            filepath = os.path.join(download_dir, filename)
+            if os.path.isfile(filepath):
+                mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
+                if mtime > recent_threshold:
+                    count += 1
+
+        return count

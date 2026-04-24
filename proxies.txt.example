@@ -1,0 +1,69 @@
+# 代理列表配置示例
+# 此文件用于说明如何配置代理，ProxyManager 会读取名为 proxies.txt 的文件
+#
+# 使用方法：
+# 1. 将此文件重命名为 proxies.txt
+# 2. 根据您的代理配置修改下面的内容
+# 3. 删除不需要的代理配置行
+#
+# 支持的代理格式：
+# - http://proxy:port
+# - https://proxy:port
+# - http://user:pass@proxy:port
+# - socks5://proxy:port
+
+# ========== 本地代理示例（如果您有VPN软件） ==========
+
+# Clash（默认端口7890）
+# http://127.0.0.1:7890
+
+# V2Ray（默认端口10809）
+# http://127.0.0.1:10809
+
+# Shadowsocks（SOCKS5，默认端口1080）
+# socks5://127.0.0.1:1080
+
+# ========== 商业代理服务示例 ==========
+
+# 如果您使用商业代理服务（如Luminati、Oxylabs、阿布云等），
+# 请按照服务商提供的格式配置
+
+# 示例：HTTP代理
+# http://proxy.example.com:8080
+
+# 示例：带认证的HTTP代理
+# http://username:password@proxy.example.com:8080
+
+# 示例：SOCKS5代理
+# socks5://proxy.example.com:1080
+
+# ========== 多个代理（轮换使用） ==========
+
+# 如果您有多个代理，每行一个，系统会自动轮换使用
+# http://proxy1.example.com:8080
+# http://proxy2.example.com:8080
+# http://proxy3.example.com:8080
+
+# ========== 环境变量配置（替代方案） ==========
+
+# 除了使用 proxies.txt 文件，您也可以通过环境变量配置代理：
+#
+# Windows CMD:
+# set PROXY=http://127.0.0.1:7890
+# set PROXY_LIST=http://proxy1:8080,http://proxy2:8080
+#
+# Windows PowerShell:
+# $env:PROXY="http://127.0.0.1:7890"
+# $env:PROXY_LIST="http://proxy1:8080,http://proxy2:8080"
+#
+# 或在 .env 文件中添加：
+# PROXY=http://127.0.0.1:7890
+# PROXY_LIST=http://proxy1:8080,http://proxy2:8080
+
+# ========== 注意事项 ==========
+
+# 1. 取消注释（删除行首的 #）才能使配置生效
+# 2. 每行一个代理配置
+# 3. # 开头的行为注释
+# 4. 空行会被忽略
+# 5. 确保代理服务器可访问且稳定

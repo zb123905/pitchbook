@@ -6,8 +6,8 @@
     "max_emails": 50
   },
   "scraper": {
-    "enable_scraper": true,
-    "fast_fail": true,
+    "enable_scraper": false,
+    "fast_fail": false,
     "max_scrape_links": 3,
     "scrape_delay_min": 2,
     "scrape_delay_max": 5,
@@ -17,7 +17,34 @@
     "enable_nlp": true,
     "enable_llm": false,
     "enable_charts": true,
-    "generate_pdf": false,
-    "report_format": "word"
+    "generate_pdf": true,
+    "report_format": "pdf"
+  },
+  "database": {
+    "enabled": false,
+    "host": "",
+    "port": 5432,
+    "database": "vcpe_pitchbook",
+    "user": "postgres",
+    "password": "",
+    "pool_size": 5,
+    "keep_json_backup": false
+  },
+  "download": {
+    "enable_download": true,
+    "enable_dedup": true,
+    "use_playwright": true,
+    "retry_count": 3,
+    "timeout": 30,
+    "file_types": [
+      "pdf",
+      "excel"
+    ],
+    "auto_discover": {
+      "enable": true,
+      "max_links": 10,
+      "recent_days": 30,
+      "source_url": "https://pitchbook.com/news/reports"
+    }
   }
 }

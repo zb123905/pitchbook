@@ -4,7 +4,7 @@
 GUI 配置的数据类定义，包含验证和序列化功能
 """
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import json
 import os
 
@@ -30,28 +30,6 @@ class EmailConfig:
         return True, ""
 
 
-@dataclass
-class ScraperConfig:
-    """爬虫配置"""
-    enable_scraper: bool = True   # 是否启用爬虫
-    fast_fail: bool = True        # 快速失败模式（403/400错误不重试）
-    max_scrape_links: int = 3     # 默认限制3个链接（优化后）
-    scrape_delay_min: int = 2     # 优化后默认值
-    scrape_delay_max: int = 5     # 优化后默认值
-    date_filter_days: int = 7
-
-    def validate(self) -> tuple[bool, str]:
-        """验证配置"""
-        if self.max_scrape_links < 0:
-            return False, "链接数量不能为负数"
-        if self.scrape_delay_min < 1 or self.scrape_delay_min > 60:
-            return False, "最小延迟应在 1-60 秒之间"
-        if self.scrape_delay_max < self.scrape_delay_min:
-            return False, "最大延迟应大于最小延迟"
-        if self.date_filter_days < 1 or self.date_filter_days > 30:
-            return False, "日期过滤范围应在 1-30 天之间"
-        return True, ""
-
 
 @dataclass
 class AnalysisConfig:
@@ -72,18 +50,89 @@ class AnalysisConfig:
 
 
 @dataclass
+class DatabaseConfig:
+    """数据库配置"""
+    enabled: bool = False
+    host: str = ""
+    port: int = 5432
+    database: str = "vcpe_pitchbook"
+    user: str = "postgres"
+    password: str = ""
+    pool_size: int = 5
+    keep_json_backup: bool = True
+
+    def validate(self) -> tuple[bool, str]:
+        """验证配置"""
+        if self.enabled:
+            if not self.host:
+                return False, "数据库主机地址不能为空"
+            if not self.database:
+                return False, "数据库名称不能为空"
+            if not self.user:
+                return False, "数据库用户名不能为空"
+            if self.port < 1 or self.port > 65535:
+                return False, "端口范围应在 1-65535 之间"
+        return True, ""
+
+
+@dataclass
+class AutoDiscoverConfig:
+    """自动发现配置"""
+    enable: bool = False                  # 启用自动发现
+    max_links: int = 10                    # 最大发现数量
+    recent_days: int = 30                  # 只下载最近N天
+    source_url: str = "https://pitchbook.com/news/reports"  # 列表页URL
+
+    def validate(self) -> tuple[bool, str]:
+        """验证配置"""
+        if self.max_links < 1 or self.max_links > 100:
+            return False, "最大发现数量应在 1-100 之间"
+        if self.recent_days < 1 or self.recent_days > 365:
+            return False, "日期范围应在 1-365 天之间"
+        return True, ""
+
+
+@dataclass
+class DownloadConfig:
+    """下载配置"""
+    enable_download: bool = True           # 启用自动下载
+    enable_dedup: bool = True             # 启用去重
+    use_playwright: bool = True           # 使用 Playwright 下载器（推荐，绕过 403 错误）
+    retry_count: int = 3                  # 重试次数 (1-10)
+    timeout: int = 30                     # 超时秒数 (10-120)
+    file_types: list = field(default_factory=lambda: ["pdf", "excel"])  # 文件类型
+
+    # 自动发现配置
+    auto_discover: AutoDiscoverConfig = field(default_factory=AutoDiscoverConfig)
+
+    def validate(self) -> tuple[bool, str]:
+        """验证配置"""
+        if self.retry_count < 1 or self.retry_count > 10:
+            return False, "重试次数应在 1-10 之间"
+        if self.timeout < 10 or self.timeout > 120:
+            return False, "超时时间应在 10-120 秒之间"
+        valid_types = {"pdf", "excel", "word", "all"}
+        if not set(self.file_types).issubset(valid_types):
+            return False, f"文件类型只能是: {', '.join(valid_types)}"
+        return True, ""
+
+
+@dataclass
 class PipelineConfig:
     """完整流程配置"""
     email: EmailConfig = field(default_factory=EmailConfig)
-    scraper: ScraperConfig = field(default_factory=ScraperConfig)
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    download: DownloadConfig = field(default_factory=DownloadConfig)
 
     def validate_all(self) -> list[tuple[str, bool, str]]:
         """验证所有配置，返回 (section, is_valid, error_message) 列表"""
         results = []
         results.append(("邮箱", *self.email.validate()))
-        results.append(("爬虫", *self.scraper.validate()))
         results.append(("分析", *self.analysis.validate()))
+        results.append(("数据库", *self.database.validate()))
+        results.append(("下载", *self.download.validate()))
+        results.append(("自动发现", *self.download.auto_discover.validate()))
         return results
 
     def is_valid(self) -> bool:
@@ -94,17 +143,29 @@ class PipelineConfig:
         """转换为字典"""
         return {
             'email': asdict(self.email),
-            'scraper': asdict(self.scraper),
-            'analysis': asdict(self.analysis)
+            'analysis': asdict(self.analysis),
+            'database': asdict(self.database),
+            'download': {
+                **asdict(self.download),
+                'auto_discover': asdict(self.download.auto_discover)
+            }
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'PipelineConfig':
         """从字典创建配置"""
+        # 处理 download 配置（包含 auto_discover）
+        download_data = data.get('download', {})
+        auto_discover_data = download_data.pop('auto_discover', {})
+
+        download_config = DownloadConfig(**download_data)
+        download_config.auto_discover = AutoDiscoverConfig(**auto_discover_data)
+
         return cls(
             email=EmailConfig(**data.get('email', {})),
-            scraper=ScraperConfig(**data.get('scraper', {})),
-            analysis=AnalysisConfig(**data.get('analysis', {}))
+            analysis=AnalysisConfig(**data.get('analysis', {})),
+            database=DatabaseConfig(**data.get('database', {})),
+            download=download_config
         )
 
     def save(self, filepath: str) -> bool:

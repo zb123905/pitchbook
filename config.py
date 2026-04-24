@@ -37,20 +37,13 @@ NLP_MODELS_DIR = get_user_data_path('nlp/models')
 # 图表临时目录 (Phase 3 - Visualization)
 CHART_TEMP_DIR = os.path.join(DATA_DIR, 'temp_charts')
 
-# Web 爬虫存储路径
-SCRAPER_MARKDOWN_DIR = AI_ANALYSIS_DIR  # Markdown 输出（用于AI分析）
-SCRAPER_PDF_DIR = HUMAN_READABLE_PDF_DIR  # PDF 输出（供人工阅读）
-SCRAPER_CACHE_DIR = get_user_data_path('数据储存/爬虫缓存')  # 爬虫缓存
-SCRAPER_LOGS_DIR = os.path.join(LOGS_DIR, 'scraper')   # 爬虫日志
-
 # 创建必要的目录
 def setup_directories():
     directories = [
         DATA_DIR, EMAILS_DIR, REPORTS_DIR, DOWNLOADS_DIR, LOGS_DIR,
         HUMAN_READABLE_DIR, HUMAN_READABLE_PDF_DIR,
         HUMAN_READABLE_SUMMARY_DIR, HUMAN_READABLE_EMAIL_DIR,
-        AI_ANALYSIS_DIR, SCRAPER_CACHE_DIR, SCRAPER_LOGS_DIR,
-        MODEL_CACHE_DIR, NLP_MODELS_DIR, CHART_TEMP_DIR
+        AI_ANALYSIS_DIR, MODEL_CACHE_DIR, NLP_MODELS_DIR, CHART_TEMP_DIR
     ]
     for directory in directories:
         ensure_directory(directory)
@@ -142,3 +135,51 @@ BACKGROUND_TRANSPARENCY_MAX = 0.7  # 70% maximum
 BACKGROUND_TRANSPARENCY_DEFAULT = 0.6  # 60% default
 BACKGROUND_TRANSPARENCY_WORD = 0.6  # Word document (60%)
 BACKGROUND_TRANSPARENCY_PDF = 0.6  # PDF document (60%)
+
+# ================= Database Configuration =================
+# PostgreSQL database configuration
+DB_ENABLED = os.getenv('DB_ENABLED', 'false').lower() == 'true'
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_PORT = int(os.getenv('DB_PORT', '5432'))
+DB_NAME = os.getenv('DB_NAME', 'vcpe_pitchbook')
+DB_USER = os.getenv('DB_USER', 'postgres')
+DB_PASSWORD = os.getenv('DB_PASSWORD', '')
+DB_POOL_SIZE = int(os.getenv('DB_POOL_SIZE', '5'))
+DB_MAX_OVERFLOW = int(os.getenv('DB_MAX_OVERFLOW', '10'))
+
+# Database connection URL
+DB_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+# Backup configuration
+KEEP_JSON_BACKUP = os.getenv('KEEP_JSON_BACKUP', 'true').lower() == 'true'
+JSON_BACKUP_DIR = get_user_data_path('数据储存/json_backup')
+
+# ================= File Download Configuration =================
+# Download directory for PDF/Excel reports
+FILE_DOWNLOAD_DIR = get_user_data_path('数据储存/文件抓取')
+ensure_directory(FILE_DOWNLOAD_DIR)
+
+# Download service configuration
+DOWNLOAD_RETRY_COUNT = int(os.getenv('DOWNLOAD_RETRY_COUNT', '5'))  # Increased from 3 to 5 for better success rate
+DOWNLOAD_TIMEOUT = int(os.getenv('DOWNLOAD_TIMEOUT', '30'))
+DOWNLOAD_USER_AGENT = os.getenv('DOWNLOAD_USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+
+# Complete browser headers to bypass 403 errors
+DOWNLOAD_HEADERS = {
+    'User-Agent': DOWNLOAD_USER_AGENT,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Referer': 'https://pitchbook.com/',
+    'DNT': '1',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-User': '?1',
+}
+
+# ================= CloudScraper Configuration =================
+# CloudScraper settings for bypassing 403 Forbidden errors
+# Note: CloudScraper functionality has been removed from the system

@@ -16,6 +16,7 @@ playwright-stealth>=1.0.6
 markdownify>=0.11.6
 pdfkit>=1.0.0
 fake-useragent>=1.5.1
+cloudscraper>=1.2.71
 
 # LLM API dependencies
 openai>=1.0.0

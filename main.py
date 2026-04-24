@@ -21,10 +21,8 @@ from report_content_extractor import ReportContentExtractor
 from content_analyzer import VCPEContentAnalyzer
 from report_generator import WeeklyReportGenerator
 
-# 导入 Web 爬虫模块
-from pitchbook_scraper import PitchBookScraper
-from markdown_converter import MarkdownConverter
-from pdf_converter import PDFConverter
+# 导入 GUI 配置模型
+from gui.models.config_model import PipelineConfig
 
 # 导入 PDF 报告生成器 (Phase 1) - Lazy import
 PDF_AVAILABLE = True
@@ -55,6 +53,15 @@ async def main():
 ║         Pure MCP Solution                                     ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
+
+    # 加载 GUI 配置（如果存在）
+    gui_config_path = PipelineConfig.get_default_path()
+    gui_config = None
+    if os.path.exists(gui_config_path):
+        gui_config = PipelineConfig.load(gui_config_path)
+        logger.info(f"已加载 GUI 配置: {gui_config_path}")
+    else:
+        logger.info("未找到 GUI 配置文件，使用 email_credentials.py 配置")
 
     # ================= 步骤1：连接MCP服务器 =================
     print("\n" + "="*70)
@@ -153,172 +160,152 @@ async def main():
             link_with_date['email_date'] = email_date
             all_links.append(link_with_date)
 
+    # 使用链接分类器筛选文件链接
+    classifier = LinkClassifier()
+    file_links = [link for link in all_links if classifier.is_direct_file_link(link.get('url', ''))]
     pitchbook_links = [link for link in all_links if 'pitchbook.com' in link.get('url', '').lower()]
 
     print(f"🔗 提取链接总数: {len(all_links)}")
+    print(f"🔗 PDF/Excel文件链接: {len(file_links)}")
     print(f"🔗 PitchBook链接: {len(pitchbook_links)}")
 
-    # ================= 步骤4：自动下载报告 =================
+    # ================= 步骤4：自动下载PDF/Excel报告 =================
     print("\n" + "="*70)
-    print("步骤4/7: 自动下载PitchBook报告")
+    print("步骤4/7: 自动下载PDF/Excel报告")
     print("="*70)
 
     downloaded_reports = []
 
-    if not pitchbook_links:
-        print("⚠️ 未找到PitchBook链接，跳过下载")
+    # 检查是否启用下载
+    enable_download = email_credentials.IMAP_CONFIG.get('enable_download', False)
+
+    if not file_links:
+        print("⏭️ 未找到PDF/Excel文件链接，跳过下载")
+    elif not enable_download:
+        print("⏭️ 文件下载已禁用（无账号场景建议保持禁用）")
+        print("💡 提示：如需启用，请将 email_credentials.py 中的 enable_download 设为 True")
+        print("   注意：没有 PitchBook 账号时，下载会因 403 Forbidden 而失败")
     else:
-        print(f"📥 开始下载 {len(pitchbook_links)} 个报告...")
+        print(f"📥 开始下载 {len(file_links)} 个文件...")
 
-        for idx, link in enumerate(pitchbook_links, 1):
-            url = link['url']
+        # 初始化下载服务
+        download_service = EnhancedDownloadService()
+
+        # 如果启用数据库，获取已下载列表用于去重
+        downloaded_urls = set()
+        db_enabled = getattr(config, 'DB_ENABLED', False)
+        if db_enabled:
             try:
-                logger.info(f"[{idx}/{len(pitchbook_links)}] 下载: {url[:70]}...")
-                result = processor.download_report_from_link(url)
+                from database.base import get_db_session
+                from database.repositories import DownloadedReportRepository
+                with get_db_session() as session:
+                    repo = DownloadedReportRepository(session)
+                    downloaded_urls = repo.get_all_downloaded_urls(limit=1000)
+                    logger.info(f"已加载 {len(downloaded_urls)} 个历史下载记录")
+            except Exception as e:
+                logger.warning(f"加载历史下载记录失败: {e}")
 
-                if result.get('success'):
-                    downloaded_reports.append(result)
-                    print(f"   ✅ {result['filename']}")
-                else:
-                    print(f"   ❌ 失败: {result.get('error', '未知错误')}")
+        # 下载文件
+        for idx, link in enumerate(file_links, 1):
+            url = link.get('url', '')
+            file_type = classifier.get_file_type(url)
+
+            # 检查去重
+            if url in downloaded_urls:
+                link_text = link.get('text', url)[:50]
+                print(f"   [{idx}/{len(file_links)}] ⏭️ 已下载: [{file_type.upper()}] {link_text}")
+                continue
+
+            link_text = link.get('text', url)[:50]
+            print(f"   [{idx}/{len(file_links)}] 📥 [{file_type.upper()}] {link_text}")
+
+            try:
+                logger.info(f"下载文件: {url[:70]}...")
+
+                # 检查是否使用 Playwright（GUI 配置优先）
+                use_playwright = False
+                if gui_config and gui_config.download.use_playwright:
+                    use_playwright = True
+                    logger.info("使用 Playwright 下载器（GUI 配置）")
+
+                # 如果 Playwright 启用且可用，优先使用
+                playwright_success = False
+                if use_playwright:
+                    try:
+                        from services.playwright_downloader import PlaywrightDownloader
+                        playwright_downloader = PlaywrightDownloader()
+                        if playwright_downloader.is_available():
+                            print(f"      🎭 使用 Playwright 下载...")
+                            playwright_result = playwright_downloader.download_single(url, retries=1)
+
+                            if playwright_result.get('success'):
+                                print(f"      ✅ Playwright 下载成功!")
+                                downloaded_urls.add(url)
+                                playwright_success = True
+
+                                # 解析输出获取文件名
+                                output = playwright_result.get('output', '')
+                                # 添加到下载报告（简化处理）
+                                downloaded_reports.append({
+                                    'success': True,
+                                    'filename': 'playwright_download',
+                                    'filepath': 'N/A',
+                                    'file_size_bytes': 0,
+                                    'source': 'playwright'
+                                })
+                            else:
+                                print(f"      ❌ Playwright 失败: {playwright_result.get('error', '未知错误')[:50]}...")
+                                print(f"      🔄 回退到标准下载...")
+                        else:
+                            print(f"      ⚠️ Playwright 不可用，使用标准下载...")
+                    except ImportError:
+                        print(f"      ⚠️ Playwright 模块不可用，使用标准下载...")
+
+                # 标准下载（Playwright 未启用、不可用或失败时）
+                if not playwright_success:
+                    result = download_service.download_report(url)
+
+                    if result.get('success'):
+                        downloaded_reports.append(result)
+                        downloaded_urls.add(url)
+                        print(f"      ✅ {result['filename']} ({result['file_size_bytes']} bytes)")
+
+                        # 保存到数据库
+                        if db_enabled:
+                            try:
+                                from database.base import get_db_session
+                                from database.repositories import DownloadedReportRepository
+                                with get_db_session() as session:
+                                    repo = DownloadedReportRepository(session)
+                                    repo.create({
+                                        'url': url,
+                                        'filename': result['filename'],
+                                        'filepath': result['filepath'],
+                                        'file_size_bytes': result['file_size_bytes'],
+                                        'content_type': result['content_type'],
+                                        'download_status': 'success',
+                                        'download_started_at': result.get('download_started_at'),
+                                        'download_completed_at': result.get('download_completed_at')
+                                    })
+                            except Exception as e:
+                                logger.warning(f"保存下载记录到数据库失败: {e}")
+                    else:
+                        # 标准下载也失败了
+                        error = result.get('error', '未知错误')
+                        print(f"      ❌ 下载失败: {error[:50]}...")
 
             except Exception as e:
                 logger.warning(f"下载失败: {e}")
+                print(f"      ❌ 异常: {e}")
 
-        print(f"\n✅ 成功下载 {len(downloaded_reports)} 个报告")
+        download_service.close()
 
-    # ================= 步骤4.5：Web爬取PitchBook内容 =================
-    print("\n" + "="*70)
-    print("步骤4.5/7: Web爬取PitchBook网页内容")
-    print("="*70)
-
-    scraped_results = []
-
-    # 检查是否启用爬虫
-    enable_scraper = email_credentials.IMAP_CONFIG.get('enable_scraper', True)
-    if not enable_scraper:
-        print("⏭️ 爬虫功能已禁用，跳过网页爬取")
-        print("💡 提示：如需启用爬虫，请将 email_credentials.py 中的 enable_scraper 设为 True")
-    elif pitchbook_links:
-        # 获取配置
-        max_scrape = email_credentials.IMAP_CONFIG.get('max_scrape_links', 0)
-        date_filter_days = email_credentials.IMAP_CONFIG.get('date_filter_days', 7)
-        start_date, end_date = email_credentials.get_date_range(date_filter_days)
-
-        print(f"📅 网页发布日期范围: {start_date} 至 {end_date}")
-        print(f"📊 从邮件中提取: {len(pitchbook_links)} 个 PitchBook 链接")
-
-        # 按日期过滤链接（从邮件的发送日期推断）
-        links_to_scrape = []
-        skipped_old = 0
-
-        for link in pitchbook_links:
-            # 使用链接所属邮件的日期
-            email_date = link.get('email_date', '')
-            if email_date and email_credentials.is_within_date_range(email_date, start_date, end_date):
-                links_to_scrape.append(link)
-            else:
-                skipped_old += 1
-
-        # 如果配置了数量限制，再应用数量限制
-        if max_scrape > 0 and len(links_to_scrape) > max_scrape:
-            links_to_scrape = links_to_scrape[:max_scrape]
-            print(f"🕷️ 准备爬取 {len(links_to_scrape)} 个网页（日期过滤 + 配置限制）...")
-        else:
-            print(f"🕷️ 准备爬取全部 {len(links_to_scrape)} 个网页（最近 {date_filter_days} 天）...")
-
-        print(f"📊 跳过 {skipped_old} 个过期链接")
-
-        # 获取快速失败配置
-        fast_fail = email_credentials.IMAP_CONFIG.get('fast_fail', True)
-        if fast_fail:
-            print(f"⚡ 快速失败模式已启用（反爬虫页面将跳过）")
-
-        print(f"⚠️ 使用反爬虫技术，每个网页需要 {email_credentials.IMAP_CONFIG.get('scrape_delay_min', 2)}-{email_credentials.IMAP_CONFIG.get('scrape_delay_max', 5)} 秒")
-
-        # 计算预计时间
-        delay_min = email_credentials.IMAP_CONFIG.get('scrape_delay_min', 2)
-        delay_max = email_credentials.IMAP_CONFIG.get('scrape_delay_max', 5)
-        delay_avg = (delay_min + delay_max) / 2
-        estimated_time = len(links_to_scrape) * delay_avg / 60
-        print(f"⏱️ 预计需要 {estimated_time:.1f} 分钟")
-
-        try:
-            # 初始化爬虫（传入 fast_fail 参数）
-            scraper = PitchBookScraper(headless=True, fast_fail=fast_fail)
-
-            if not await scraper.initialize():
-                print("❌ 爬虫初始化失败，跳过网页爬取")
-            else:
-                # 初始化转换器
-                md_converter = MarkdownConverter()
-                pdf_converter = PDFConverter()
-
-                # 爬取每个链接
-                for idx, link in enumerate(links_to_scrape, 1):
-                    url = link['url']
-                    print(f"\n[{idx}/{len(links_to_scrape)}] 爬取: {url[:70]}...")
-
-                    try:
-                        # 爬取网页（传入日期参数进行双重验证）
-                        scraped_data = await scraper.scrape_url(
-                            url,
-                            start_date=start_date,
-                            end_date=end_date
-                        )
-
-                        if scraped_data:
-                            # 检查是否被跳过
-                            if scraped_data.get('skip_reason'):
-                                reason = scraped_data.get('skip_reason')
-                                pub_date = scraped_data.get('pub_date', 'N/A')
-                                print(f"   ⏭️ 跳过: {reason}")
-                                if pub_date != 'N/A':
-                                    print(f"   📅 发布日期: {pub_date}")
-                                continue
-
-                            # 转换为 Markdown
-                            md_path = md_converter.convert(scraped_data)
-                            # 转换为 PDF
-                            pdf_path = pdf_converter.convert(scraped_data)
-
-                            scraped_results.append({
-                                'url': url,
-                                'title': scraped_data.get('title', ''),
-                                'markdown_path': md_path,
-                                'pdf_path': pdf_path,
-                                'word_count': scraped_data.get('word_count', 0),
-                                'scraped_at': scraped_data.get('scraped_at', '')
-                            })
-
-                            print(f"   ✅ 成功: {scraped_data.get('title', 'N/A')[:50]}")
-                            if md_path:
-                                print(f"   📝 Markdown: {md_path}")
-                            if pdf_path:
-                                print(f"   📄 PDF: {pdf_path}")
-                        else:
-                            print(f"   ❌ 爬取失败")
-
-                    except Exception as e:
-                        logger.warning(f"爬取网页失败: {e}")
-                        print(f"   ❌ 错误: {e}")
-                        continue
-
-                # 清理资源
-                await scraper.close()
-
-                print(f"\n✅ 成功爬取 {len(scraped_results)} 个页面")
-
-        except Exception as e:
-            logger.error(f"Web 爬取过程出错: {e}")
-            print(f"❌ Web 爬取出错: {e}")
-            print("💡 系统将继续处理其他内容")
-    else:
-        print("⏭️ 没有 PitchBook 链接，跳过网页爬取")
+        success_count = len([r for r in downloaded_reports if r.get('success')])
+        print(f"\n✅ 成功下载 {success_count}/{len(file_links)} 个文件")
 
     # ================= 步骤5：提取报告内容 =================
     print("\n" + "="*70)
-    print("步骤5/7: 提取报告内容")
+    print("步骤5/8: 提取报告内容")
     print("="*70)
 
     if downloaded_reports:
@@ -340,7 +327,7 @@ async def main():
 
     # ================= 步骤6：综合分析 =================
     print("\n" + "="*70)
-    print("步骤6/7: 综合分析（邮件 + 报告）")
+    print("步骤6/8: 综合分析（邮件 + 报告）")
     print("="*70)
 
     analyzer = VCPEContentAnalyzer(use_llm=True)
@@ -380,7 +367,7 @@ async def main():
 
     # ================= 步骤7：生成报告 =================
     print("\n" + "="*70)
-    print("步骤7/7: 生成报告")
+    print("步骤7/8: 生成报告")
     print("="*70)
 
     # 选择报告格式

@@ -175,6 +175,138 @@ class VCPEPromptTemplates:
 
         return prompt
 
+    def get_limited_content_prompt(
+        self,
+        content: str,
+        structured_data: Optional[Dict] = None,
+        metadata: Optional[Dict] = None
+    ) -> List[Dict[str, str]]:
+        """
+        针对邮件内容有限的场景优化分析prompt
+
+        当无法访问完整报告或网页内容时，从邮件标题和摘要中提取最大价值
+
+        Args:
+            content: 邮件正文内容
+            structured_data: 从email_processor提取的结构化数据（公司、金额、交易类型等）
+            metadata: 邮件元数据（主题、日期等）
+
+        Returns:
+            Messages列表
+        """
+        metadata = metadata or {}
+        structured_data = structured_data or {}
+
+        # 构建结构化数据上下文
+        structured_context = ""
+        if structured_data:
+            if structured_data.get('titles'):
+                structured_context += f"\n提取的标题:\n"
+                for title in structured_data['titles'][:3]:
+                    structured_context += f"  - {title}\n"
+
+            if structured_data.get('company_names'):
+                structured_context += f"\n识别的公司: {', '.join(structured_data['company_names'][:5])}\n"
+
+            if structured_data.get('deal_amounts'):
+                structured_context += f"\n涉及金额: {', '.join(structured_data['deal_amounts'][:5])}\n"
+
+            if structured_data.get('transaction_types'):
+                structured_context += f"\n交易类型: {', '.join(structured_data['transaction_types'])}\n"
+
+            if structured_data.get('industries'):
+                structured_context += f"\n相关行业: {', '.join(structured_data['industries'])}\n"
+
+        prompt = f"""你正在分析一封PitchBook行业邮件。注意：由于没有PitchBook账号，你只能看到邮件中的标题和摘要，无法访问完整报告内容。
+
+你的任务是从有限的信息中提取最大价值，进行合理推断和专业分析。
+
+## 邮件元数据
+"""
+        if metadata.get('subject'):
+            prompt += f"- 主题: {metadata['subject']}\n"
+        if metadata.get('date'):
+            prompt += f"- 日期: {metadata['date']}\n"
+
+        prompt += f"""
+## 从邮件中提取的结构化信息
+{structured_context if structured_context else '(无结构化数据)'}
+
+## 邮件正文内容
+{content[:3000]}
+
+---
+
+## 分析要求
+
+由于信息有限，请：
+1. **充分利用已有信息**: 深入分析邮件中的每个标题和摘要
+2. **合理推断**: 基于行业知识对隐含信息进行合理推断
+3. **专业洞察**: 即使信息有限，也要提供有价值的行业分析
+4. **明确标注**: 对于推断的内容，请明确标注"基于XX推断"
+
+## 输出格式 (JSON):
+
+```json
+{{
+  "content_source": "email_only",
+  "confidence_level": "high|medium|low",
+  "content_type": "周报|市场报告|交易公告|趋势分析",
+  "industries": ["行业1", "行业2"],
+  "key_topics": ["主题1", "主题2", "主题3"],
+  "mentioned_companies": [
+    {{"name": "公司名", "role": "角色", "confidence": "certain|inferred"}}
+  ],
+  "investment_deals": [
+    {{
+      "company": "公司名",
+      "amount": "金额",
+      "round": "轮次",
+      "investors": ["投资方"],
+      "confidence": "certain|inferred",
+      "source": "explicit_title|implicit_context"
+    }}
+  ],
+  "market_sentiment": "积极|中性|消极",
+  "key_insights": [
+    "洞察1（基于XX）",
+    "洞察2（推断）",
+    "洞察3"
+  ],
+  "inferred_information": [
+    "推断信息1",
+    "推断信息2"
+  ],
+  "summary_chinese": "内容摘要",
+  "analysis_full": "完整分析，包含推断和行业知识",
+  "recommendations": [
+    "建议1",
+    "建议2"
+  ]
+}}
+```
+
+请仅输出JSON格式。"""
+
+        messages = [
+            {"role": "system", "content": """你是一位资深VC/PE行业分析师，擅长从有限信息中提取最大价值。
+
+你的核心能力：
+1. 能够从简短的标题和摘要中快速抓住关键信息
+2. 基于行业知识进行合理且有依据的推断
+3. 明确区分事实信息和推断内容
+4. 即使信息不完整，也能提供有价值的洞察
+
+分析原则：
+- 准确性：区分明确信息和推断内容
+- 专业性：基于VC/PE行业知识进行分析
+- 实用性：提供可操作的建议和洞察
+- 透明度：明确标注信息来源和置信度"""},
+            {"role": "user", "content": prompt}
+        ]
+
+        return messages
+
     def get_summary_prompt(
         self,
         analyses: List[Dict],

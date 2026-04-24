@@ -87,6 +87,58 @@ class ReportContentExtractor:
             logger.error(f"HTML extraction failed for {html_path}: {e}")
             return ""
 
+    def extract_from_excel(self, excel_path):
+        """从Excel文件提取内容
+
+        Args:
+            excel_path: Excel文件路径 (.xlsx, .xls)
+
+        Returns:
+            str: 提取的文本内容
+        """
+        if not os.path.exists(excel_path):
+            logger.error(f"Excel file not found: {excel_path}")
+            return ""
+
+        try:
+            # 优先使用 openpyxl
+            import openpyxl
+            wb = openpyxl.load_workbook(excel_path, read_only=True, data_only=True)
+            text_content = []
+
+            for sheet_name in wb.sheetnames:
+                sheet = wb[sheet_name]
+                logger.info(f"Processing sheet: {sheet_name}")
+
+                # 提取所有非空行
+                for row in sheet.iter_rows(values_only=True):
+                    # 过滤 None 值和空字符串
+                    row_values = [str(cell) if cell is not None else '' for cell in row]
+                    row_text = '  '.join([v for v in row_values if v.strip()])
+                    if row_text:
+                        text_content.append(row_text)
+
+            wb.close()
+            return '\n'.join(text_content)
+
+        except ImportError:
+            logger.warning("openpyxl not installed, trying pandas fallback")
+        except Exception as e:
+            logger.warning(f"openpyxl extraction failed for {excel_path}: {e}")
+
+        # 后备方案：pandas
+        try:
+            import pandas as pd
+            all_sheets = []
+            for sheet_name in pd.ExcelFile(excel_path).sheet_names:
+                df = pd.read_excel(excel_path, sheet_name=sheet_name)
+                sheet_text = df.to_string(index=False, na_rep='')
+                all_sheets.append(f"=== Sheet: {sheet_name} ===\n{sheet_text}")
+            return '\n\n'.join(all_sheets)
+        except Exception as e:
+            logger.error(f"Pandas Excel extraction also failed for {excel_path}: {e}")
+            return ""
+
     def extract_content(self, file_path):
         """根据文件类型自动提取内容
 
@@ -104,6 +156,8 @@ class ReportContentExtractor:
 
         if file_lower.endswith('.pdf'):
             return self.extract_from_pdf(file_path)
+        elif file_lower.endswith(('.xlsx', '.xls')):
+            return self.extract_from_excel(file_path)
         elif file_lower.endswith(('.html', '.htm')):
             return self.extract_from_html(file_path)
         elif file_lower.endswith('.txt'):
@@ -145,6 +199,8 @@ class ReportContentExtractor:
         """根据扩展名返回文件类型名称"""
         type_map = {
             '.pdf': 'PDF Document',
+            '.xlsx': 'Excel Spreadsheet',
+            '.xls': 'Excel Spreadsheet',
             '.html': 'HTML Document',
             '.htm': 'HTML Document',
             '.txt': 'Text File'

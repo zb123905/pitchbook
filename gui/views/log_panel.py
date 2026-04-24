@@ -8,17 +8,12 @@ import os
 from datetime import datetime
 from typing import Optional
 
+from ..utils.apple_theme import AppleTheme, get_color, get_font, get_spacing, get_corner_radius
+from ..components import AnimatedButton, AnimatedSegmentedButton
+
 
 class LogPanel(ctk.CTkFrame):
     """日志面板 - 第四个标签页"""
-
-    # 日志颜色映射
-    LOG_COLORS = {
-        'DEBUG': ('#999', '#666'),
-        'INFO': ('#333', '#DDD'),
-        'WARNING': ('#FF9800', '#FF9800'),
-        'ERROR': ('#F44336', '#F44336'),
-    }
 
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
@@ -32,64 +27,83 @@ class LogPanel(ctk.CTkFrame):
 
     def _create_widgets(self):
         """创建界面组件"""
-        # 头部
-        header_frame = ctk.CTkFrame(self)
-        header_frame.pack(fill="x", padx=10, pady=(10, 5))
+        # 头部卡片
+        header_frame = ctk.CTkFrame(
+            self,
+            corner_radius=AppleTheme.get_corner_radius('medium'),
+            fg_color=AppleTheme.color('bg_secondary'),
+            border_width=AppleTheme.BORDER_WIDTH['thin'],
+            border_color=AppleTheme.color('separator')
+        )
+        header_frame.pack(fill="x", padx=AppleTheme.get_padding('lg'), pady=(AppleTheme.get_padding('lg'), AppleTheme.get_spacing('lg')))
 
         header_label = ctk.CTkLabel(
             header_frame,
             text="📋 日志查看",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=get_font('title', 'bold'),
+            text_color=AppleTheme.color('text_primary')
         )
-        header_label.pack(pady=(15, 10), padx=15, anchor="w")
+        header_label.pack(pady=(AppleTheme.get_padding('md'), AppleTheme.get_spacing('md')), padx=AppleTheme.get_padding('lg'), anchor="w")
+
+        # 过滤器和按钮容器
+        control_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        control_frame.pack(side="right", padx=AppleTheme.get_padding('lg'), pady=AppleTheme.get_padding('md'))
+
+        # 清空和导出按钮
+        self.export_button = AnimatedButton(
+            control_frame,
+            text="📤 导出",
+            command=self._export_logs,
+            style='secondary',
+            width=80
+        )
+        self.export_button.pack(side="left", padx=(0, AppleTheme.get_spacing('sm')))
+
+        self.clear_button = AnimatedButton(
+            control_frame,
+            text="🗑️ 清空",
+            command=self._clear_logs,
+            style='ghost',
+            width=80
+        )
+        self.clear_button.pack(side="left", padx=(0, AppleTheme.get_spacing('lg')))
 
         # 过滤器
-        filter_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        filter_frame.pack(side="right", padx=15, pady=10)
+        ctk.CTkLabel(
+            control_frame,
+            text="过滤:",
+            font=get_font('body'),
+            text_color=AppleTheme.color('text_secondary')
+        ).pack(side="left", padx=(0, AppleTheme.get_spacing('sm')))
 
-        ctk.CTkLabel(filter_frame, text="过滤:").pack(side="left", padx=(0, 5))
-
-        self.filter_segmented = ctk.CTkSegmentedButton(
-            filter_frame,
+        self.filter_segmented = AnimatedSegmentedButton(
+            control_frame,
             values=["全部", "INFO", "WARNING", "ERROR"],
-            width=250,
+            width=280,
             command=self._on_filter_change
         )
         self.filter_segmented.pack(side="left")
         self.filter_segmented.set("全部")
 
-        # 清空和导出按钮
-        btn_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        btn_frame.pack(side="right", padx=(0, 15), pady=10)
-
-        self.export_button = ctk.CTkButton(
-            btn_frame,
-            text="📤 导出",
-            command=self._export_logs,
-            width=80
-        )
-        self.export_button.pack(side="left", padx=(0, 5))
-
-        self.clear_button = ctk.CTkButton(
-            btn_frame,
-            text="🗑️ 清空",
-            command=self._clear_logs,
-            width=80,
-            fg_color="transparent",
-            border_width=1
-        )
-        self.clear_button.pack(side="left")
-
         # 日志文本框（使用 CTkTextbox，支持滚动）
-        log_frame = ctk.CTkFrame(self)
-        log_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        log_frame = ctk.CTkFrame(
+            self,
+            corner_radius=AppleTheme.get_corner_radius('medium'),
+            fg_color=AppleTheme.color('bg_secondary'),
+            border_width=AppleTheme.BORDER_WIDTH['thin'],
+            border_color=AppleTheme.color('separator')
+        )
+        log_frame.pack(fill="both", expand=True, padx=AppleTheme.get_padding('lg'), pady=(0, AppleTheme.get_padding('lg')))
 
         self.log_text = ctk.CTkTextbox(
             log_frame,
-            font=ctk.CTkFont(family="Consolas", size=11),
-            wrap="word"
+            font=ctk.CTkFont(family="Consolas", size=AppleTheme.get_font_size('caption')),
+            wrap="word",
+            fg_color=AppleTheme.color('bg_primary'),
+            border_width=0,
+            corner_radius=AppleTheme.get_corner_radius('small')
         )
-        self.log_text.pack(fill="both", expand=True, padx=5, pady=5)
+        self.log_text.pack(fill="both", expand=True, padx=AppleTheme.get_spacing('md'), pady=AppleTheme.get_spacing('md'))
 
         # 配置标签
         self._configure_tags()
@@ -97,34 +111,48 @@ class LogPanel(ctk.CTkFrame):
         # 自动滚动开关
         self.autoscroll_var = ctk.BooleanVar(value=True)
 
-        autoscroll_frame = ctk.CTkFrame(self)
-        autoscroll_frame.pack(fill="x", padx=10, pady=(0, 10))
+        autoscroll_frame = ctk.CTkFrame(
+            self,
+            corner_radius=AppleTheme.get_corner_radius('medium'),
+            fg_color=AppleTheme.color('bg_secondary'),
+            border_width=AppleTheme.BORDER_WIDTH['thin'],
+            border_color=AppleTheme.color('separator')
+        )
+        autoscroll_frame.pack(fill="x", padx=AppleTheme.get_padding('lg'), pady=(0, AppleTheme.get_padding('lg')))
 
         self.autoscroll_check = ctk.CTkCheckBox(
             autoscroll_frame,
             text="自动滚动到最新",
             variable=self.autoscroll_var,
             onvalue=True,
-            offvalue=False
+            offvalue=False,
+            font=get_font('body'),
+            text_color=AppleTheme.color('text_primary')
         )
-        self.autoscroll_check.pack(side="left", padx=15, pady=5)
+        self.autoscroll_check.pack(side="left", padx=AppleTheme.get_padding('lg'), pady=AppleTheme.get_padding('sm'))
 
         # 状态
         self.status_label = ctk.CTkLabel(
             autoscroll_frame,
             text="",
-            text_color=("#999", "#666")
+            font=get_font('caption'),
+            text_color=AppleTheme.color('text_tertiary')
         )
-        self.status_label.pack(side="left", padx=15)
+        self.status_label.pack(side="left", padx=AppleTheme.get_padding('lg'))
 
     def _configure_tags(self):
         """配置文本标签颜色"""
-        self.log_text.tag_config("DEBUG", foreground="#999")
-        self.log_text.tag_config("INFO", foreground="#333")
-        self.log_text.tag_config("WARNING", foreground="#FF9800")
-        self.log_text.tag_config("ERROR", foreground="#F44336")
-        self.log_text.tag_config("TIMESTAMP", foreground="#666")
-        self.log_text.tag_config("DIM", foreground="#AAA")
+        colors = AppleTheme.get_colors()
+        mode = ctk.get_appearance_mode()
+        text_color = colors['text_primary'] if mode == 'Dark' else AppleTheme.LIGHT['text_primary']
+        tertiary_color = colors['text_tertiary'] if mode == 'Dark' else AppleTheme.LIGHT['text_tertiary']
+
+        self.log_text.tag_config("DEBUG", foreground=colors['text_tertiary'])
+        self.log_text.tag_config("INFO", foreground=text_color)
+        self.log_text.tag_config("WARNING", foreground=colors['accent_orange'])
+        self.log_text.tag_config("ERROR", foreground=colors['accent_red'])
+        self.log_text.tag_config("TIMESTAMP", foreground=tertiary_color)
+        self.log_text.tag_config("DIM", foreground=colors['text_tertiary'])
 
     def _on_filter_change(self, value: str):
         """过滤变更"""
@@ -256,10 +284,10 @@ class LogPanel(ctk.CTkFrame):
 
             self.status_label.configure(
                 text=f"日志已导出: {export_path}",
-                text_color=("#4CAF50", "#4CAF50")
+                text_color=AppleTheme.color('success')
             )
         except Exception as e:
             self.status_label.configure(
                 text=f"导出失败: {e}",
-                text_color=("#F44336", "#F44336")
+                text_color=AppleTheme.color('error')
             )

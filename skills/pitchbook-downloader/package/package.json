@@ -1,0 +1,34 @@
+{
+  "name": "pitchbook-report-downloader-skill",
+  "version": "0.1.0",
+  "description": "Install and run the PitchBook report downloader skill.",
+  "license": "MIT",
+  "private": true,
+  "bin": {
+    "pitchbook-report-downloader-skill": "bin/cli.js"
+  },
+  "files": [
+    ".env",
+    "SKILL.md",
+    "README.md",
+    "LICENSE",
+    "agents",
+    "scripts",
+    "references",
+    "install.sh",
+    "install.ps1",
+    "bootstrap.sh",
+    "run.command",
+    "bin"
+  ],
+  "scripts": {
+    "bootstrap": "bash ./bootstrap.sh",
+    "install:browsers": "playwright install chromium",
+    "download:reports": "node scripts/download_pitchbook_reports.mjs",
+    "interactive": "node scripts/interactive_download.mjs",
+    "retry:failed": "node scripts/retry_failed_from_run.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.59.1"
+  }
+}

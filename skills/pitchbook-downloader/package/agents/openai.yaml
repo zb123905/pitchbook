@@ -1,0 +1,4 @@
+interface:
+  display_name: "PitchBook Report Downloader"
+  short_description: "Automate PitchBook report form-fill and downloads"
+  default_prompt: "Use $pitchbook-report-downloader to download PitchBook reports from a listing or URL file with retries and diagnostics."

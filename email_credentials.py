@@ -13,15 +13,13 @@ IMAP_CONFIG = {
     'fetch_days': 7,          # 只读取最近 7 天的邮件（默认一周）
     'max_emails': 50,         # 最多读取 50 封邮件（增加数量以确保覆盖一周）
 
-    # 爬虫配置（优化后）
-    'enable_scraper': True,      # 是否启用爬虫
-    'fast_fail': True,           # 快速失败模式（403/400错误不重试）
-    'max_scrape_links': 3,       # 默认限制3个链接（从0改为3）
-    'scrape_delay_min': 2,       # 从5降到2秒
-    'scrape_delay_max': 5,       # 从12降到5秒
+    # 下载配置（无账号场景下默认禁用）
+    'enable_download': True,     # 是否启用文件下载（无账号场景建议禁用，因为会返回403）
 
-    # 日期过滤
-    'date_filter_days': 7,    # 只爬取最近 7 天发布的内容
+    # 代理配置（用于绕过 IP 封锁）
+    'proxies': [],               # 代理列表，格式: ['http://proxy:port', 'http://user:pass@proxy:port']
+                                  # 示例: ['http://127.0.0.1:7890', 'socks5://127.0.0.1:1080']
+                                  # 留空 = 不使用代理
 
     # 报告格式配置 (Phase 1)
     'generate_pdf': False,     # 是否生成PDF报告（包含图表）
